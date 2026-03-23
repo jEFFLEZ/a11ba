@@ -1,6 +1,6 @@
 // --- .env first ---
 const path = require('node:path');
-const { fileURLToPath } = require('node:url');
+const { fileURLToPath } } = require('node:url');
 const fs = require('node:fs');
 const dotenv = require('dotenv');
 
@@ -139,6 +139,25 @@ try {
 globalThis.__QFLUSH_AVAILABLE = QFLUSH_AVAILABLE;
 globalThis.__QFLUSH_MODULE = QFLUSH_MODULE;
 globalThis.__QFLUSH_PATH = QFLUSH_PATH;
+
+// Initialize qflush supervisor if available
+if (QFLUSH_AVAILABLE) {
+  try {
+    const { setupA11Supervisor } = require('./src/qflush-integration.cjs');
+    setupA11Supervisor().then((supervisor) => {
+      if (supervisor) {
+        console.log('[Supervisor] A11 supervisor initialized');
+        globalThis.__A11_SUPERVISOR = supervisor;
+        // Optionally start managed processes
+        // Note: On Railway (cloud), local processes won't start
+      }
+    }).catch((e) => {
+      console.warn('[Supervisor] Setup failed:', e.message);
+    });
+  } catch (e) {
+    console.warn('[Supervisor] Load failed:', e.message);
+  }
+}
 
 // --- Mémoire persistante A-11 (conversations) ---
 const fsMem = require('node:fs');
