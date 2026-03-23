@@ -1,6 +1,6 @@
 // --- .env first ---
 const path = require('node:path');
-const { fileURLToPath } = require('node:url');
+const { fileURLToPath } } = require('node:url');
 const fs = require('node:fs');
 const dotenv = require('dotenv');
 
@@ -677,8 +677,6 @@ app.post("/api/tools/run", async (req, res) => {
 });
 
 // Nouveau endpoint IA avec Qflush
-const qflush = require('@funeste38/qflush');
-
 app.post('/ai', async (req, res) => {
   try {
     const { input, mode } = req.body || {};
@@ -689,6 +687,7 @@ app.post('/ai', async (req, res) => {
     let output;
     if (mode === 'qflush') {
       // Mode Qflush : utiliser l'orchestrateur
+      const qflush = (await import('@funeste38/qflush')).default;
       output = qflush.process(input);
     } else {
       // Mode LLM : proxy vers le LLM router
