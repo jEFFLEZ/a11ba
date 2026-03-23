@@ -1,0 +1,4 @@
+
+> @funeste38/qflush@4.0.4 build
+> tsc -p .
+

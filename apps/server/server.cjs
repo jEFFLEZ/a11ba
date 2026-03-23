@@ -671,8 +671,26 @@ app.post("/api/tools/run", async (req, res) => {
     }
     const result = await runQflushTool(tool, input || {});
     res.json(result);
-  } catch (e) {
+  } catch ( e) {
     res.status(500).json({ ok: false, error: e.message || String(e) });
+  }
+});
+
+// Nouveau endpoint IA avec Qflush
+const qflush = require('qflush');
+
+app.post('/ai', async (req, res) => {
+  try {
+    const { input } = req.body || {};
+    if (!input) {
+      return res.status(400).json({ error: 'Missing input' });
+    }
+
+    const output = qflush.process(input);
+
+    res.json({ output });
+  } catch ( e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -849,7 +867,7 @@ app.get('/api/a11/memory/conversations', (req, res) => {
     entries.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
 
     res.json({ ok: true, entries });
-  } catch (e) {
+  } catch ( e) {
     console.error('[A11][memory] read failed:', e && e.message);
     res.status(500).json({ ok: false, error: String(e && e.message) });
   }

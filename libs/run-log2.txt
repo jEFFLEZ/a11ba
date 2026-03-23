@@ -1,0 +1,32 @@
+[36m[QFLASH][0m SmartChain built pipeline: detect -> config -> start
+[36m[QFLASH][0m Executing pipeline step: detect
+[36m[QFLASH][0m qflash: detecting modules...
+[36m[QFLASH][0m rome: stopped
+[36m[QFLASH][0m nezlephant: stopped
+[36m[QFLASH][0m envaptex: stopped
+[36m[QFLASH][0m freeland: stopped
+[36m[QFLASH][0m bat: stopped
+[36m[QFLASH][0m Executing pipeline step: config
+[36m[QFLASH][0m qflash: generating default configs...
+[36m[QFLASH][0m Executing pipeline step: start
+[36m[QFLASH][0m qflash: starting modules...
+[36m[QFLASH][0m Launching rome -> C:\Program Files\nodejs\node.exe D:\A11\apps\server\node_modules\@funeste38\rome\dist\cli.js
+[36m[QFLASH][0m supervisor: starting rome -> C:\Program Files\nodejs\node.exe D:\A11\apps\server\node_modules\@funeste38\rome\dist\cli.js
+[33m[QFLASH][0m nezlephant has no local bin; will run via npx which may fail if package not globally installed.
+[36m[QFLASH][0m Launching nezlephant -> npx @funeste38/nezlephant
+[36m[QFLASH][0m supervisor: starting nezlephant -> npx @funeste38/nezlephant
+[33m[QFLASH][0m envaptex has no local bin; will run via npx which may fail if package not globally installed.
+[36m[QFLASH][0m Launching envaptex -> npx @funeste38/envaptex
+[36m[QFLASH][0m supervisor: starting envaptex -> npx @funeste38/envaptex
+[33m[QFLASH][0m freeland has no local bin; will run via npx which may fail if package not globally installed.
+[36m[QFLASH][0m Launching freeland -> npx @funeste38/freeland
+[36m[QFLASH][0m supervisor: starting freeland -> npx @funeste38/freeland
+[33m[QFLASH][0m bat has no local bin; will run via npx which may fail if package not globally installed.
+[36m[QFLASH][0m Launching bat -> npx @funeste38/bat
+[36m[QFLASH][0m supervisor: starting bat -> npx @funeste38/bat
+[32m[QFLASH][0m qflash: start sequence initiated for selected modules
+[31m[QFLASH][0m supervisor: nezlephant process error spawn npx ENOENT
+[31m[QFLASH][0m supervisor: envaptex process error spawn npx ENOENT
+[31m[QFLASH][0m supervisor: freeland process error spawn npx ENOENT
+[31m[QFLASH][0m supervisor: bat process error spawn npx ENOENT
+[33m[QFLASH][0m supervisor: rome exited with 0

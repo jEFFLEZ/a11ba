@@ -1,0 +1,569 @@
+
+> @funeste38/qflush@4.0.4 prepublishOnly
+> npm run build && npm test
+
+
+> @funeste38/qflush@4.0.4 build
+> tsc -p .
+
+
+> @funeste38/qflush@4.0.4 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv4.0.15 [39m[90mD:/qflush[39m
+
+[90mstderr[2m | src/cortex/pngCodec.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/cortex/pngCodec.more.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/spyder-admin-port-occupied.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/cortex/router.unit.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/npz-bat-modes.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/cortex/router.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/legacy-runner.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/merged-resolver.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/cortex/routesConfig.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/cortex/applyPacket.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/rome-links.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/npz-bat-modes.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun checksum.test.ts
+[22m[39mtests PASSED
+
+ [32m✓[39m src/cortex/router.unit.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/cortex/routesConfig.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/cortex/pngCodec.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 19[2mms[22m[39m
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun engine.test.ts
+[22m[39mengine test actions: [
+  {
+    action: [32m'start-service'[39m,
+    service: [32m'qflush-daemon'[39m,
+    path: [32m'src/daemon/qflushd.ts'[39m
+  },
+  {
+    action: [32m'watch'[39m,
+    path: [32m'src/commands/checksum.ts'[39m,
+    reason: [32m'cli-command'[39m
+  },
+  {
+    action: [32m'start-service'[39m,
+    service: [32m'cli-dispatcher'[39m,
+    path: [32m'src/commands/checksum.ts'[39m
+  },
+  {
+    action: [32m'encode-npz'[39m,
+    path: [32m'assets/banner.png'[39m,
+    codec: [32m'oc8-rgba'[39m
+  },
+  { action: [32m'noop'[39m, path: [32m'src/tests/foo.test.ts'[39m }
+]
+
+ [32m✓[39m src/cortex/pngCodec.more.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+[90mstderr[2m | src/cortex/applyPacket.spec.ts
+[22m[39m[executor] load storage failed Error: Cannot find module './storage'
+Require stack:
+- D:\qflush\src\rome\executor.ts
+
+ [32m✓[39m src/cortex/router.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+[90mstdout[2m | src/cortex/applyPacket.spec.ts[2m > [22m[2mapplyPacket handlers[2m > [22m[2mapplies oc8 metadata
+[22m[39m[APPLY] packet already applied (id= t-oc8-1 ) — skipping
+
+ [32m✓[39m src/tests/rome-links.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+[90mstdout[2m | src/cortex/applyPacket.spec.ts[2m > [22m[2mapplyPacket handlers[2m > [22m[2mapplies auto-patch dry-run and does not write config
+[22m[39m[APPLY] packet already applied (id= t-patch-1 ) — skipping
+
+ [32m✓[39m src/cortex/applyPacket.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstderr[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun executor.test.ts
+[22m[39m[executor] load storage failed Error: Cannot find module './storage'
+Require stack:
+- D:\qflush\src\rome\executor.ts
+
+[90mstdout[2m | src/tests/merged-resolver.test.ts[2m > [22m[2mmerged resolver[2m > [22m[2msupervisor wins when running candidate exists
+[22m[39m[33m[QFLASH][0m [NPZ] findLocalBin.resolve failed for foo: Error: Cannot find module 'foo'
+Require stack:
+- D:\qflush\src\utils\npz.ts
+[33m[QFLASH][0m [NPZ] resolveViaModuleGate failed for foo: Error: Cannot find module 'foo'
+Require stack:
+- D:\qflush\src\utils\npz.ts
+[36m[QFLASH][0m [NPZ:JOKER] foo -> npm exec
+
+ [32m✓[39m src/tests/merged-resolver.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+[90mstdout[2m | src/tests/spyder-admin-port-occupied.test.ts[2m > [22m[2mspyder admin port occupied behavior[2m > [22m[2mdoes not persist spyder config when admin port is already bound
+[22m[39m[36m[QFLASH][0m qflash: starting modules...
+
+[90mstderr[2m | src/tests/gumroad-license.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/gumroad-license.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+[90mstderr[2m | src/cortex/listener.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/spyder-admin-port.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/spyder-admin-port.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstderr[2m | src/cortex/router.a11.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/rome-index.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/executor.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/executor.test.ts
+[22m[39m[executor] load storage failed Error: Cannot find module './storage'
+Require stack:
+- D:\qflush\src\rome\executor.ts
+
+[90mstderr[2m | src/tests/logic.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/rome-index.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/cortex/router.a11.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/tests/executor.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+[90mstderr[2m | src/cortex/codec.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/smartchain.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/logic.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/cortex/codec.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/tests/smartchain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/cortex/listener.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstderr[2m | src/tests/logic-parser.unit.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/logic-parser.unit.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+[90mstderr[2m | src/tests/logic-action.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun executor.test.ts
+[22m[39mexecutor tests passed
+
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun logic-action.test.ts
+[22m[39mrules loaded [33m3[39m
+evaluateAllRules result [
+  {
+    path: [32m'src/index.ts'[39m,
+    actions: [ [32m'daemon.reload'[39m ],
+    rule: [32m'refresh_on_index'[39m
+  },
+  {
+    path: [32m'src/daemon/qflushd.ts'[39m,
+    actions: [ [32m'daemon.reload'[39m ],
+    rule: [32m'refresh_on_index'[39m
+  },
+  {
+    path: [32m'src/commands/checksum.ts'[39m,
+    actions: [ [32m'daemon.reload'[39m ],
+    rule: [32m'refresh_on_index'[39m
+  },
+  {
+    path: [32m'src/utils/npz.ts'[39m,
+    actions: [ [32m'daemon.reload'[39m ],
+    rule: [32m'refresh_on_index'[39m
+  },
+  {
+    path: [32m'extensions/vscode-npz/src/pourparler-web.html'[39m,
+    actions: [ [32m'daemon.reload'[39m ],
+    rule: [32m'refresh_on_index'[39m
+  }
+]
+
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun logic-parser.unit.test.ts
+[22m[39mlogic-parser unit tests passed
+
+[90mstdout[2m | src/tests/legacy-runner.spec.ts[2m > [22m[2mlegacy test runner[2m > [22m[2mrun logic.test.ts
+[22m[39mparsed rules: [ [32m'build_module'[39m, [32m'encode_assets'[39m, [32m'refresh_on_index'[39m ]
+
+[90mstderr[2m | src/cortex/vision.spec.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/logic-action.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/tests/legacy-runner.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 709[2mms[22m[39m
+     [33m[2m✓[22m[39m run executor.test.ts [33m 577[2mms[22m[39m
+[90mstderr[2m | src/tests/engine.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+[90mstderr[2m | src/tests/checksum.test.ts
+[22m[39m[vitest.setup] running tests in CORTEX mode (no HTTP daemon)
+
+ [32m✓[39m src/tests/checksum.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/tests/engine.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/cortex/vision.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+[90mstdout[2m | src/tests/spyder-admin-port-occupied.test.ts[2m > [22m[2mspyder admin port occupied behavior[2m > [22m[2mdoes not persist spyder config when admin port is already bound
+[22m[39m[33m[QFLASH][0m spyder path and package not found, skipping
+
+[90mstdout[2m | src/tests/spyder-admin-port-occupied.test.ts[2m > [22m[2mspyder admin port occupied behavior[2m > [22m[2mdoes not persist spyder config when admin port is already bound
+[22m[39m[32m[QFLASH][0m qflash: start sequence initiated for selected modules
+
+ [32m✓[39m src/tests/spyder-admin-port-occupied.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 774[2mms[22m[39m
+     [33m[2m✓[22m[39m does not persist spyder config when admin port is already bound [33m 772[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m25 passed[39m[22m[90m (25)[39m
+[2m      Tests [22m [1m[32m53 passed[39m[22m[90m (53)[39m
+[2m   Start at [22m 20:35:31
+[2m   Duration [22m 1.17s[2m (transform 1.60s, setup 547ms, import 1.74s, tests 1.69s, environment 4ms)[22m
+
+
+> @funeste38/qflush@4.0.4 prepare
+> npm run build
+
+
+> @funeste38/qflush@4.0.4 build
+> tsc -p .
+
+npm notice
+npm notice package: @funeste38/qflush@4.0.4
+npm notice Tarball Contents
+npm notice 2.6kB LICENSE
+npm notice 939B LICENSE-COMMERCIAL.md
+npm notice 2.1kB LICENSE-FUNESTERIE.txt
+npm notice 457B LICENSE-NON-COMMERCIAL.md
+npm notice 1.3kB PUBLISH.md
+npm notice 1.3kB README-FCL.md
+npm notice 4.4kB README.md
+npm notice 530B TRADEMARK.md
+npm notice 700B dist/chain/smartChain.d.ts
+npm notice 5.7kB dist/chain/smartChain.js
+npm notice 31B dist/cli.d.ts
+npm notice 142B dist/cli.js
+npm notice 42B dist/cli/help.d.ts
+npm notice 1.2kB dist/cli/help.js
+npm notice 88B dist/commands/a11-key.d.ts
+npm notice 4.6kB dist/commands/a11-key.js
+npm notice 73B dist/commands/a11.d.ts
+npm notice 6.2kB dist/commands/a11.js
+npm notice 67B dist/commands/apply.d.ts
+npm notice 13.7kB dist/commands/apply.js
+npm notice 71B dist/commands/checksum.d.ts
+npm notice 4.6kB dist/commands/checksum.js
+npm notice 67B dist/commands/compose.d.ts
+npm notice 4.3kB dist/commands/compose.js
+npm notice 128B dist/commands/config.d.ts
+npm notice 1.1kB dist/commands/config.js
+npm notice 98B dist/commands/copilot-bridge.d.ts
+npm notice 3.0kB dist/commands/copilot-bridge.js
+npm notice 89B dist/commands/copilot.d.ts
+npm notice 2.8kB dist/commands/copilot.js
+npm notice 178B dist/commands/detect.d.ts
+npm notice 599B dist/commands/detect.js
+npm notice 67B dist/commands/doctor.d.ts
+npm notice 2.0kB dist/commands/doctor.js
+npm notice 88B dist/commands/engine.d.ts
+npm notice 1.2kB dist/commands/engine.js
+npm notice 129B dist/commands/exodia.d.ts
+npm notice 251B dist/commands/exodia.js
+npm notice 69B dist/commands/freeze.d.ts
+npm notice 725B dist/commands/freeze.js
+npm notice 126B dist/commands/inspect.d.ts
+npm notice 1.0kB dist/commands/inspect.js
+npm notice 127B dist/commands/kill.d.ts
+npm notice 511B dist/commands/kill.js
+npm notice 84B dist/commands/license-activate.d.ts
+npm notice 968B dist/commands/license-activate.js
+npm notice 61B dist/commands/license-status.d.ts
+npm notice 576B dist/commands/license-status.js
+npm notice 73B dist/commands/license.d.ts
+npm notice 4.2kB dist/commands/license.js
+npm notice 87B dist/commands/logic.d.ts
+npm notice 772B dist/commands/logic.js
+npm notice 97B dist/commands/npz-inspect.d.ts
+npm notice 641B dist/commands/npz-inspect.js
+npm notice 101B dist/commands/npz-scores.d.ts
+npm notice 1.3kB dist/commands/npz-scores.js
+npm notice 68B dist/commands/piccolo.d.ts
+npm notice 2.9kB dist/commands/piccolo.js
+npm notice 127B dist/commands/purge.d.ts
+npm notice 1.2kB dist/commands/purge.js
+npm notice 58B dist/commands/resonnance.d.ts
+npm notice 1.3kB dist/commands/resonnance.js
+npm notice 70B dist/commands/resume.d.ts
+npm notice 210B dist/commands/resume.js
+npm notice 101B dist/commands/rome-links.d.ts
+npm notice 610B dist/commands/rome-links.js
+npm notice 70B dist/commands/safe-run.d.ts
+npm notice 3.3kB dist/commands/safe-run.js
+npm notice 75B dist/commands/secret-import.d.ts
+npm notice 2.8kB dist/commands/secret-import.js
+npm notice 82B dist/commands/spyder-secrets.d.ts
+npm notice 2.8kB dist/commands/spyder-secrets.js
+npm notice 88B dist/commands/spyder.d.ts
+npm notice 5.8kB dist/commands/spyder.js
+npm notice 127B dist/commands/start.d.ts
+npm notice 5.6kB dist/commands/start.js
+npm notice 71B dist/commands/test-horn.d.ts
+npm notice 1.2kB dist/commands/test-horn.js
+npm notice 72B dist/commands/vision.d.ts
+npm notice 753B dist/commands/vision.js
+npm notice 53B dist/compose/fclParser.d.ts
+npm notice 3.3kB dist/compose/fclParser.js
+npm notice 264B dist/compose/parser.d.ts
+npm notice 2.6kB dist/compose/parser.js
+npm notice 454B dist/core/a11Client.d.ts
+npm notice 2.4kB dist/core/a11Client.js
+npm notice 511B dist/core/gandalf-light.d.ts
+npm notice 944B dist/core/gandalf-light.js
+npm notice 414B dist/core/horn.d.ts
+npm notice 939B dist/core/horn.js
+npm notice 156B dist/core/qflush-mode.d.ts
+npm notice 577B dist/core/qflush-mode.js
+npm notice 60B dist/core/start-system.d.ts
+npm notice 558B dist/core/start-system.js
+npm notice 275B dist/cortex/a11-adapter.d.ts
+npm notice 947B dist/cortex/a11-adapter.js
+npm notice 226B dist/cortex/applyPacket.d.ts
+npm notice 18.6kB dist/cortex/applyPacket.js
+npm notice 11B dist/cortex/applyPacket.spec.d.ts
+npm notice 2.9kB dist/cortex/applyPacket.spec.js
+npm notice 48B dist/cortex/bus.d.ts
+npm notice 3.5kB dist/cortex/bus.js
+npm notice 156B dist/cortex/cli.d.ts
+npm notice 2.9kB dist/cortex/cli.js
+npm notice 1.2kB dist/cortex/codec.d.ts
+npm notice 8.0kB dist/cortex/codec.js
+npm notice 11B dist/cortex/codec.spec.d.ts
+npm notice 1.1kB dist/cortex/codec.spec.js
+npm notice 159B dist/cortex/decoder.d.ts
+npm notice 6.5kB dist/cortex/decoder.js
+npm notice 291B dist/cortex/emit.d.ts
+npm notice 2.5kB dist/cortex/emit.js
+npm notice 78B dist/cortex/encoder.d.ts
+npm notice 3.6kB dist/cortex/encoder.js
+npm notice 53B dist/cortex/listener.d.ts
+npm notice 4.0kB dist/cortex/listener.js
+npm notice 11B dist/cortex/listener.spec.d.ts
+npm notice 2.7kB dist/cortex/listener.spec.js
+npm notice 358B dist/cortex/pngCodec.d.ts
+npm notice 6.3kB dist/cortex/pngCodec.js
+npm notice 11B dist/cortex/pngCodec.more.spec.d.ts
+npm notice 4.2kB dist/cortex/pngCodec.more.spec.js
+npm notice 11B dist/cortex/pngCodec.spec.d.ts
+npm notice 2.9kB dist/cortex/pngCodec.spec.js
+npm notice 53B dist/cortex/resonnance.d.ts
+npm notice 472B dist/cortex/resonnance.js
+npm notice 11B dist/cortex/router.a11.spec.d.ts
+npm notice 1.4kB dist/cortex/router.a11.spec.js
+npm notice 341B dist/cortex/router.d.ts
+npm notice 9.6kB dist/cortex/router.js
+npm notice 11B dist/cortex/router.spec.d.ts
+npm notice 2.6kB dist/cortex/router.spec.js
+npm notice 11B dist/cortex/router.unit.spec.d.ts
+npm notice 2.4kB dist/cortex/router.unit.spec.js
+npm notice 598B dist/cortex/routesConfig.d.ts
+npm notice 4.1kB dist/cortex/routesConfig.js
+npm notice 11B dist/cortex/routesConfig.spec.d.ts
+npm notice 3.0kB dist/cortex/routesConfig.spec.js
+npm notice 206B dist/cortex/types.d.ts
+npm notice 77B dist/cortex/types.js
+npm notice 272B dist/cortex/vision.d.ts
+npm notice 2.3kB dist/cortex/vision.js
+npm notice 11B dist/cortex/vision.spec.d.ts
+npm notice 2.6kB dist/cortex/vision.spec.js
+npm notice 377B dist/decoders/secret.d.ts
+npm notice 4.0kB dist/decoders/secret.js
+npm notice 57B dist/index.d.ts
+npm notice 3.7kB dist/index.js
+npm notice 224B dist/lib/index.d.ts
+npm notice 1.8kB dist/lib/index.js
+npm notice 503B dist/lib/npz-engine/index.d.ts
+npm notice 875B dist/lib/npz-engine/index.js
+npm notice 58B dist/piccolo/repairs-ci.d.ts
+npm notice 3.2kB dist/piccolo/repairs-ci.js
+npm notice 63B dist/piccolo/repairs-imports.d.ts
+npm notice 3.7kB dist/piccolo/repairs-imports.js
+npm notice 57B dist/piccolo/repairs-tsconfig.d.ts
+npm notice 3.4kB dist/piccolo/repairs-tsconfig.js
+npm notice 58B dist/piccolo/tests-safe.d.ts
+npm notice 586B dist/piccolo/tests-safe.js
+npm notice 557B dist/rome/copilot-bridge.d.ts
+npm notice 6.4kB dist/rome/copilot-bridge.js
+npm notice 1.0kB dist/rome/copilot-types.d.ts
+npm notice 99B dist/rome/copilot-types.js
+npm notice 671B dist/rome/engine.d.ts
+npm notice 2.7kB dist/rome/engine.js
+npm notice 252B dist/rome/events.d.ts
+npm notice 3.6kB dist/rome/events.js
+npm notice 226B dist/rome/executor.d.ts
+npm notice 13.9kB dist/rome/executor.js
+npm notice 581B dist/rome/gollum-paths.d.ts
+npm notice 1.7kB dist/rome/gollum-paths.js
+npm notice 316B dist/rome/index-loader.d.ts
+npm notice 3.2kB dist/rome/index-loader.js
+npm notice 797B dist/rome/linker.d.ts
+npm notice 6.0kB dist/rome/linker.js
+npm notice 519B dist/rome/logic-loader.d.ts
+npm notice 4.2kB dist/rome/logic-loader.js
+npm notice 866B dist/rome/logic-parser.d.ts
+npm notice 6.7kB dist/rome/logic-parser.js
+npm notice 1.1kB dist/rome/rome-tag.d.ts
+npm notice 4.2kB dist/rome/rome-tag.js
+npm notice 369B dist/rome/storage.d.ts
+npm notice 6.1kB dist/rome/storage.js
+npm notice 722B dist/services/index.d.ts
+npm notice 9.6kB dist/services/index.js
+npm notice 106B dist/spyder/core/scanner.d.ts
+npm notice 2.6kB dist/spyder/core/scanner.js
+npm notice 118B dist/spyder/decoders/loadSecretsScanner.d.ts
+npm notice 1.0kB dist/spyder/decoders/loadSecretsScanner.js
+npm notice 100B dist/spyder/decoders/secrets-local.d.ts
+npm notice 3.2kB dist/spyder/decoders/secrets-local.js
+npm notice 196B dist/spyder/decoders/secrets.d.ts
+npm notice 2.3kB dist/spyder/decoders/secrets.js
+npm notice 409B dist/spyder/decoders/types.d.ts
+npm notice 77B dist/spyder/decoders/types.js
+npm notice 412B dist/spyder/lamp.d.ts
+npm notice 898B dist/spyder/lamp.js
+npm notice 119B dist/spyder/loaders/loadScanner.d.ts
+npm notice 547B dist/spyder/loaders/loadScanner.js
+npm notice 248B dist/spyder/types.d.ts
+npm notice 77B dist/spyder/types.js
+npm notice 101B dist/supervisor.d.ts
+npm notice 911B dist/supervisor.js
+npm notice 514B dist/supervisor/index.d.ts
+npm notice 3.8kB dist/supervisor/index.js
+npm notice 129B dist/supervisor/merged-resolver.d.ts
+npm notice 2.3kB dist/supervisor/merged-resolver.js
+npm notice 51B dist/tests/checksum.test.d.ts
+npm notice 6.1kB dist/tests/checksum.test.js
+npm notice 51B dist/tests/engine.test.d.ts
+npm notice 1.3kB dist/tests/engine.test.js
+npm notice 51B dist/tests/executor.test.d.ts
+npm notice 3.6kB dist/tests/executor.test.js
+npm notice 11B dist/tests/gumroad-license.test.d.ts
+npm notice 1.0kB dist/tests/gumroad-license.test.js
+npm notice 11B dist/tests/legacy-runner.spec.d.ts
+npm notice 2.5kB dist/tests/legacy-runner.spec.js
+npm notice 51B dist/tests/logic-action.test.d.ts
+npm notice 956B dist/tests/logic-action.test.js
+npm notice 51B dist/tests/logic-parser.unit.test.d.ts
+npm notice 1.1kB dist/tests/logic-parser.unit.test.js
+npm notice 51B dist/tests/logic.test.d.ts
+npm notice 621B dist/tests/logic.test.js
+npm notice 11B dist/tests/merged-resolver.test.d.ts
+npm notice 3.7kB dist/tests/merged-resolver.test.js
+npm notice 11B dist/tests/npz-bat-modes.test.d.ts
+npm notice 2.9kB dist/tests/npz-bat-modes.test.js
+npm notice 11B dist/tests/rome-index.test.d.ts
+npm notice 732B dist/tests/rome-index.test.js
+npm notice 11B dist/tests/rome-links.test.d.ts
+npm notice 1.5kB dist/tests/rome-links.test.js
+npm notice 11B dist/tests/smartchain.test.d.ts
+npm notice 669B dist/tests/smartchain.test.js
+npm notice 11B dist/tests/spyder-admin-port-occupied.test.d.ts
+npm notice 3.6kB dist/tests/spyder-admin-port-occupied.test.js
+npm notice 11B dist/tests/spyder-admin-port.test.d.ts
+npm notice 2.3kB dist/tests/spyder-admin-port.test.js
+npm notice 55B dist/utils/alias.d.ts
+npm notice 5.3kB dist/utils/alias.js
+npm notice 199B dist/utils/archive.d.ts
+npm notice 3.6kB dist/utils/archive.js
+npm notice 204B dist/utils/auth.d.ts
+npm notice 1.5kB dist/utils/auth.js
+npm notice 1.6kB dist/utils/colors.d.ts
+npm notice 4.9kB dist/utils/colors.js
+npm notice 129B dist/utils/detect.d.ts
+npm notice 2.4kB dist/utils/detect.js
+npm notice 473B dist/utils/exec.d.ts
+npm notice 2.3kB dist/utils/exec.js
+npm notice 216B dist/utils/fetch.d.ts
+npm notice 3.4kB dist/utils/fetch.js
+npm notice 761B dist/utils/fileChecksum.d.ts
+npm notice 6.3kB dist/utils/fileChecksum.js
+npm notice 1.3kB dist/utils/gumroad-license.d.ts
+npm notice 5.3kB dist/utils/gumroad-license.js
+npm notice 292B dist/utils/health.d.ts
+npm notice 1.9kB dist/utils/health.js
+npm notice 708B dist/utils/license.d.ts
+npm notice 4.5kB dist/utils/license.js
+npm notice 170B dist/utils/logger.d.ts
+npm notice 394B dist/utils/logger.js
+npm notice 312B dist/utils/normalize.d.ts
+npm notice 2.0kB dist/utils/normalize.js
+npm notice 50B dist/utils/npz-admin.d.ts
+npm notice 2.7kB dist/utils/npz-admin.js
+npm notice 150B dist/utils/npz-config.d.ts
+npm notice 2.7kB dist/utils/npz-config.js
+npm notice 994B dist/utils/npz-customs.d.ts
+npm notice 4.8kB dist/utils/npz-customs.js
+npm notice 926B dist/utils/npz-engine.d.ts
+npm notice 5.4kB dist/utils/npz-engine.js
+npm notice 206B dist/utils/npz-metrics.d.ts
+npm notice 762B dist/utils/npz-metrics.js
+npm notice 336B dist/utils/npz-middleware.d.ts
+npm notice 3.5kB dist/utils/npz-middleware.js
+npm notice 951B dist/utils/npz-pourparler.d.ts
+npm notice 4.2kB dist/utils/npz-pourparler.js
+npm notice 1.6kB dist/utils/npz-router.d.ts
+npm notice 12.2kB dist/utils/npz-router.js
+npm notice 735B dist/utils/npz-store-redis.d.ts
+npm notice 2.3kB dist/utils/npz-store-redis.js
+npm notice 724B dist/utils/npz-store.d.ts
+npm notice 4.2kB dist/utils/npz-store.js
+npm notice 463B dist/utils/npz.d.ts
+npm notice 7.6kB dist/utils/npz.js
+npm notice 144B dist/utils/package.d.ts
+npm notice 1.2kB dist/utils/package.js
+npm notice 188B dist/utils/paths.d.ts
+npm notice 1.3kB dist/utils/paths.js
+npm notice 224B dist/utils/qflush-ai.d.ts
+npm notice 1.7kB dist/utils/qflush-ai.js
+npm notice 57B dist/utils/redis.d.ts
+npm notice 837B dist/utils/redis.js
+npm notice 361B dist/utils/safe-fs.d.ts
+npm notice 3.1kB dist/utils/safe-fs.js
+npm notice 187B dist/utils/secrets.d.ts
+npm notice 2.8kB dist/utils/secrets.js
+npm notice 555B dist/utils/service-map.d.ts
+npm notice 2.2kB dist/utils/service-map.js
+npm notice 156B dist/utils/tokens.d.ts
+npm notice 504B dist/utils/tokens.js
+npm notice 402B examples/funesterie.fcl
+npm notice 251B examples/funesterie.yml
+npm notice 207.2kB examples/rire-joker-04.mp3
+npm notice 221B examples/rome-workspace/package-lock.json
+npm notice 215B examples/rome-workspace/package.json
+npm notice 244B examples/rome-workspace/README.md
+npm notice 2.7MB installers/FCL_Commercial_License.pdf
+npm notice 3.5MB installers/funesterie_logo.png
+npm notice 2.5kB installers/install-qflush.ps1
+npm notice 557B installers/install-qflushd.ps1
+npm notice 2.9kB installers/NE-LINER.txt
+npm notice 704B installers/ONE-LINER.txt
+npm notice 222B installers/qflushd.service
+npm notice 890B installers/README-install.md
+npm notice 2.1kB package.json
+npm notice Tarball Details
+npm notice name: @funeste38/qflush
+npm notice version: 4.0.4
+npm notice filename: funeste38-qflush-4.0.4.tgz
+npm notice package size: 4.0 MB
+npm notice unpacked size: 7.0 MB
+npm notice shasum: 02bfe2bb7a83eedef285298b3cff7fa2ce0d5d27
+npm notice integrity: sha512-TPg3byteP/Yfo[...]hrNJEjSCe5C7Q==
+npm notice total files: 317
+npm notice
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
++ @funeste38/qflush@4.0.4
