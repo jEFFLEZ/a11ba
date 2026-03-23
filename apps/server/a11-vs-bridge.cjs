@@ -1,8 +1,6 @@
 // apps/server/a11-vs-bridge.cjs
 // Bridge HTTP vers la VSIX A11 (VS toolwindow)
 
-const fetch = require("node-fetch");
-
 const VS_PORT = process.env.A11_VS_PORT || 4050;
 const VS_URL = process.env.A11_VS_URL || `http://127.0.0.1:${VS_PORT}`;
 

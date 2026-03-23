@@ -222,7 +222,7 @@ function saveMemo(type, data) {
     fsMem.writeFileSync(memoFile, JSON.stringify(entry, null, 2), 'utf8');
 
     // Index JSONL (append)
-    fsMem.appendFileSync(ALL_MEMO_INDEX, JSON.stringify(entry) + '\n', 'utf8');
+    fsMem.appendFileSync(A11_MEMO_INDEX, JSON.stringify(entry) + '\n', 'utf8');
 
     return entry;
   } catch (e) {

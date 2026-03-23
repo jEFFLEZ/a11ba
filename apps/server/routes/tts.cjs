@@ -4,7 +4,6 @@ const { spawn } = require('child_process');
 const http = require('http');
 const express = require('express');
 const router = express.Router();
-const fetch = require('node-fetch');
 
 function listOnnxFiles(modelsDir) {
   const results = [];
