@@ -342,7 +342,7 @@ try {
   const ttsRouter = require('./routes/tts.cjs');   // ← c'est déjà un express.Router()
   app.use('/api', ttsRouter);
   console.log('[Server] TTS routes mounted under /api');
-} catch (e) {
+} catch ( e) {
   console.warn('[Server] Failed to register TTS routes:', e && e.message);
 }
 
@@ -978,7 +978,7 @@ app.post('/api/a11/memo/snapshot/qflush', async (req, res) => {
       return res.status(500).json({ ok: false, error: 'saveMemo failed' });
     }
     return res.json({ ok: true, memo: entry });
-  } catch (e) {
+  } catch ( e) {
     console.error('[A11][memo] qflush snapshot failed:', e && e.message);
     return res.status(500).json({ ok: false, error: e && e.message });
   }
