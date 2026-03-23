@@ -1,6 +1,6 @@
 // --- .env first ---
 const path = require('node:path');
-const { fileURLToPath } = require('node:url');
+const { fileURLToPath } } = require('node:url');
 const fs = require('node:fs');
 const dotenv = require('dotenv');
 
@@ -427,7 +427,7 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cookieParser());
 
 // Serve frontend static files from the canonical web public folder only (not server/public_legacy)
-const webPublic = path.resolve(__dirname, '..', 'web', 'public');
+const webPublic = path.resolve(__dirname, '..', 'web', 'dist');
 try {
   const serveStatic = (process.env.SERVE_STATIC && process.env.SERVE_STATIC.toLowerCase() === 'true') || (process.env.NODE_ENV === 'production');
   if (serveStatic) {
