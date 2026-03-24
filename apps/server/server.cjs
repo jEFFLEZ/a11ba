@@ -462,14 +462,16 @@ function verifyJWT(req, res, next) {
 app.post('/api/auth/register', express.json(), async (req, res) => {
   if (!db) return res.status(503).json({ error: 'Database unavailable' });
   const { username, email, password } = req.body || {};
-  if (!username || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+  const normalizedUsername = String(username || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedUsername || !normalizedEmail || !password) return res.status(400).json({ error: 'Missing fields' });
   try {
     const hash = await bcrypt.hash(password, 10);
     await db.query(
       'INSERT INTO users (username, email, password_hash) VALUES ($1,$2,$3)',
-      [username, email, hash]
+      [normalizedUsername, normalizedEmail, hash]
     );
-    console.log('[AUTH] ✅ Register:', username);
+    console.log('[AUTH] ✅ Register:', normalizedUsername);
     res.json({ ok: true });
   } catch (e) {
     console.warn('[AUTH] Register failed:', e.message);
@@ -480,7 +482,8 @@ app.post('/api/auth/register', express.json(), async (req, res) => {
 // ✅ LOGIN - renvoie un JWT signé
 app.post('/api/auth/login', express.json(), async (req, res) => {
   const { email, username, password } = req.body || {};
-  const identifier = (email || username || '').trim();
+  const identifier = String(email || username || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
   console.log('[AUTH] Login attempt:', identifier || '(empty)');
 
   if (!identifier || !password) {
@@ -500,7 +503,7 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
   try {
     const { rows } = await db.query(
       'SELECT * FROM users WHERE LOWER(email)=LOWER($1) OR username=$1 LIMIT 1',
-      [identifier]
+      [normalizedEmail || identifier]
     );
     if (!rows.length) return res.status(401).json({ success: false, error: 'Invalid credentials' });
     const user = rows[0];
@@ -519,25 +522,29 @@ app.post('/api/auth/login', express.json(), async (req, res) => {
 const forgotPasswordHandler = async (req, res) => {
   if (!db) return res.status(503).json({ error: 'Database unavailable' });
   const { email } = req.body || {};
-  if (!email) return res.status(400).json({ error: 'Missing email' });
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return res.status(400).json({ error: 'Missing email' });
   if (!emailTransporter) {
     console.warn('[AUTH] Forgot requested but email transport is not configured');
     return res.json({ ok: true, mailEnabled: false });
   }
   try {
-    const { rows } = await db.query('SELECT * FROM users WHERE email=$1', [email]);
+    const { rows } = await db.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [normalizedEmail]);
     // Toujours répondre ok pour ne pas révéler si l'email existe
-    if (!rows.length) return res.json({ ok: true });
+    if (!rows.length) {
+      console.warn('[AUTH] Forgot requested for unknown email');
+      return res.json({ ok: true });
+    }
     const user = rows[0];
     const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '15m' });
     const link = `${process.env.FRONT_URL || 'https://a11.funesterie.pro'}/reset?token=${resetToken}`;
     await emailTransporter.sendMail({
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER || process.env.SMTP_USER,
-      to: email,
+      to: user.email,
       subject: 'A11 — Réinitialisation mot de passe',
       text: `Clique ici pour réinitialiser ton mot de passe (valide 15 min):\n\n${link}`
     });
-    console.log('[AUTH] ✅ Reset email envoyé à:', email);
+    console.log('[AUTH] ✅ Reset email envoyé à:', user.email);
     res.json({ ok: true, mailEnabled: true });
   } catch (e) {
     console.error('[AUTH] Forgot error:', e.message);
