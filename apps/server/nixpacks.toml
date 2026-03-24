@@ -1,11 +1,13 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python311", "python311Packages.pip"]
+nixPkgs = ["nodejs_20", "python311", "python311Packages.virtualenv"]
 
 [phases.install]
 cmds = [
 	"npm install",
-	"pip3 --version",
-	"pip3 install --user --no-cache-dir piper-tts"
+	"python3 -m venv /opt/venv",
+	"/opt/venv/bin/python -m ensurepip --upgrade || true",
+	"/opt/venv/bin/pip --version",
+	"/opt/venv/bin/pip install --no-cache-dir piper-tts"
 ]
 
 [phases.build]
