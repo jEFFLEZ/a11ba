@@ -6,6 +6,23 @@ set -o pipefail 2>/dev/null || true
 # Include common user-local bin paths where pip installs executables.
 export PATH="/opt/venv/bin:/root/.local/bin:/app/.local/bin:${PATH}"
 
+# Nix environments may not expose libstdc++ to Python wheels by default.
+# Find libstdc++.so.6 and expose it through LD_LIBRARY_PATH for numpy/piper.
+if [ -z "${LD_LIBRARY_PATH:-}" ]; then
+	export LD_LIBRARY_PATH=""
+fi
+LIBSTDCPP_PATH="$(find /nix/store -type f -name 'libstdc++.so.6' 2>/dev/null | head -n 1 || true)"
+if [ -n "${LIBSTDCPP_PATH}" ]; then
+	LIBSTDCPP_DIR="$(dirname "${LIBSTDCPP_PATH}")"
+	case ":${LD_LIBRARY_PATH}:" in
+		*":${LIBSTDCPP_DIR}:"*) ;;
+		*) export LD_LIBRARY_PATH="${LIBSTDCPP_DIR}:${LD_LIBRARY_PATH}" ;;
+	esac
+	echo "[A11] libstdc++ detected at ${LIBSTDCPP_DIR}"
+else
+	echo "[A11] WARNING: libstdc++.so.6 not found in /nix/store"
+fi
+
 echo "[A11] Booting server..."
 
 PIPER_PID=""
