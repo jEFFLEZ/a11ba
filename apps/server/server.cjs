@@ -98,6 +98,9 @@ const open = require('open');
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { Pool } = require('pg');
+const nodemailer = require('nodemailer');
 const { nezAuth, getNezAccessLog, TOKENS, MODE, registerIssuedToken } = require('./src/middleware/nezAuth');
 
 const BASE = path.resolve(__dirname);
@@ -346,6 +349,31 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// ============================================================
+// PostgreSQL pool (Railway Postgres)
+// ============================================================
+const db = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null;
+
+if (db) {
+  db.connect()
+    .then(client => { client.release(); console.log('[DB] ✅ PostgreSQL connecté'); })
+    .catch(e => console.error('[DB] ❌ Connexion PostgreSQL échouée:', e.message));
+} else {
+  console.warn('[DB] DATABASE_URL non défini, authentification DB désactivée');
+}
+
+// ============================================================
+// Email transporter (nodemailer / Gmail)
+// ============================================================
+const emailTransporter = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    })
+  : null;
+
 // Ajout express.json AVANT les proxies pour garantir le body POST
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -411,32 +439,99 @@ function verifyJWT(req, res, next) {
 }
 
 // ✅ LOGIN ROUTE - renvoie un JWT signé
-app.post('/api/auth/login', express.json(), (req, res) => {
-  const { username, password } = req.body || {};
-  
-  console.log('[AUTH] Login attempt:', username);
-  
-  // ⚠️ TEMP: hardcoded credentials (à remplacer par une vraie DB)
-  if (username === 'admin' && password === '1234') {
-    const token = jwt.sign(
-      { username, id: 'admin' },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRY }
+// ✅ REGISTER
+app.post('/api/auth/register', express.json(), async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Database unavailable' });
+  const { username, email, password } = req.body || {};
+  if (!username || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    await db.query(
+      'INSERT INTO users (username, email, password_hash) VALUES ($1,$2,$3)',
+      [username, email, hash]
     );
-    
-    console.log('[AUTH] ✅ Login réussi pour admin, JWT signé');
-    return res.json({
-      success: true,
-      token,
-      user: { id: 'admin', username }
-    });
+    console.log('[AUTH] ✅ Register:', username);
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('[AUTH] Register failed:', e.message);
+    res.status(400).json({ error: 'User already exists' });
   }
-  
-  console.log('[AUTH] ❌ Credentials invalides');
-  res.status(401).json({
-    success: false,
-    error: 'Invalid credentials'
-  });
+});
+
+// ✅ LOGIN - renvoie un JWT signé
+app.post('/api/auth/login', express.json(), async (req, res) => {
+  const { email, password } = req.body || {};
+  console.log('[AUTH] Login attempt:', email);
+
+  // Fallback hardcodé si pas de DB (dev sans DATABASE_URL)
+  if (!db) {
+    const { username: u, password: p } = req.body || {};
+    if (u === 'admin' && p === '1234') {
+      const token = jwt.sign({ username: 'admin', id: 'admin' }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+      return res.json({ success: true, token, user: { id: 'admin', username: 'admin' } });
+    }
+    return res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
+
+  try {
+    const { rows } = await db.query('SELECT * FROM users WHERE email=$1', [email]);
+    if (!rows.length) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    const user = rows[0];
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+    console.log('[AUTH] ✅ Login réussi:', user.username);
+    res.json({ success: true, token, user: { id: user.id, username: user.username } });
+  } catch (e) {
+    console.error('[AUTH] Login error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ✅ FORGOT PASSWORD
+app.post('/api/auth/forgot', express.json(), async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Database unavailable' });
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Missing email' });
+  try {
+    const { rows } = await db.query('SELECT * FROM users WHERE email=$1', [email]);
+    // Toujours répondre ok pour ne pas révéler si l'email existe
+    if (!rows.length) return res.json({ ok: true });
+    const user = rows[0];
+    const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '15m' });
+    const link = `${process.env.FRONT_URL || 'https://a11.funesterie.pro'}/reset?token=${resetToken}`;
+    if (emailTransporter) {
+      await emailTransporter.sendMail({
+        to: email,
+        subject: 'A11 — Réinitialisation mot de passe',
+        text: `Clique ici pour réinitialiser ton mot de passe (valide 15 min):\n\n${link}`
+      });
+      console.log('[AUTH] ✅ Reset email envoyé à:', email);
+    } else {
+      console.warn('[AUTH] Reset link (no email configured):', link);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[AUTH] Forgot error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ✅ RESET PASSWORD
+app.post('/api/auth/reset', express.json(), async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Database unavailable' });
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'Missing fields' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const hash = await bcrypt.hash(password, 10);
+    await db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, decoded.id]);
+    console.log('[AUTH] ✅ Password reset for user id:', decoded.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[AUTH] Reset error:', e.message);
+    res.status(400).json({ error: 'Invalid or expired token' });
+  }
 });
 
 // ✅ AUTH MIDDLEWARE - appliqué SEULEMENT sur /api/ai pour protéger chat
