@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
+# Enable pipefail when supported (bash), ignore otherwise.
+set -o pipefail 2>/dev/null || true
 
 # Include common user-local bin paths where pip installs executables.
 export PATH="/opt/venv/bin:/root/.local/bin:/app/.local/bin:${PATH}"
