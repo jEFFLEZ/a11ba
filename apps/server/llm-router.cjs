@@ -236,6 +236,34 @@ function resolveSafePath(relPath) {
   return full;
 }
 
+const PROTECTED_PATH_SEGMENTS = new Set([
+  'node_modules',
+  '.git',
+  '.env',
+  '.a11_backups',
+  '.qflash',
+  '.qflush'
+]);
+
+const SAFE_MODE = String(process.env.A11_SAFE_MODE ?? 'true').toLowerCase() !== 'false';
+
+function hasDeleteConfirmation(msg = {}) {
+  const token = String(msg.confirm || msg.confirmation || '').trim();
+  return msg.confirmDelete === true && token === 'DELETE';
+}
+
+function isProtectedPath(targetPath) {
+  const normalized = path.resolve(String(targetPath || '')).toLowerCase();
+  const parts = normalized.split(/[\\/]+/).filter(Boolean);
+  return parts.some((segment) => PROTECTED_PATH_SEGMENTS.has(segment));
+}
+
+function assertNotProtectedPath(targetPath) {
+  if (isProtectedPath(targetPath)) {
+    throw new Error(`delete operation refused on protected path: ${targetPath}`);
+  }
+}
+
 // 4.2 — BACKUP SYSTEM (pour UNDO)
 const BACKUP_DIR = path.join(WORKSPACE_ROOT, ".a11_backups");
 function ensureBackupDir() {
@@ -310,8 +338,136 @@ function handleListDir(msg) {
   logTool("[list_dir] " + full);
   return { ok: true, path: full, items };
 }
+
+function getInternalApiBaseUrl() {
+  const configured = String(process.env.A11_INTERNAL_API_BASE_URL || "").trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  const port = String(process.env.PORT || 3000).trim() || "3000";
+  return `http://127.0.0.1:${port}`;
+}
+
+function getAuthTokenFromContext(context = {}) {
+  return String(context.authToken || "").trim();
+}
+
+function guessContentType(filePath) {
+  const ext = path.extname(String(filePath || "")).toLowerCase();
+  switch (ext) {
+    case ".pdf":
+      return "application/pdf";
+    case ".txt":
+    case ".md":
+      return "text/plain; charset=utf-8";
+    case ".json":
+      return "application/json";
+    case ".csv":
+      return "text/csv; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    case ".docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case ".xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function fetchInternalJson(pathname, options = {}, context = {}) {
+  const authToken = getAuthTokenFromContext(context);
+  if (!authToken) {
+    throw new Error("share_file requires authenticated user context");
+  }
+
+  const url = `${getInternalApiBaseUrl()}${pathname}`;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-NEZ-TOKEN": authToken,
+    ...(options.headers || {}),
+  };
+
+  const res = await fetch(url, {
+    method: options.method || "GET",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const data = await res.json().catch(async () => ({ ok: false, error: await res.text().catch(() => "invalid_response") }));
+  if (!res.ok) {
+    return { ok: false, status: res.status, ...(data && typeof data === "object" ? data : { error: String(data) }) };
+  }
+  return data;
+}
+
+async function handleShareFile(msg) {
+  const context = msg._context || {};
+  const full = resolveSafePath(msg.path);
+  if (!fs.existsSync(full)) return { ok: false, error: "File not found", path: full };
+  const stats = fs.statSync(full);
+  if (!stats.isFile()) return { ok: false, error: "Path is not a file", path: full };
+
+  const buffer = fs.readFileSync(full);
+  const payload = {
+    filename: msg.filename || path.basename(full),
+    contentBase64: buffer.toString("base64"),
+    contentType: msg.contentType || guessContentType(full),
+    emailTo: msg.emailTo || msg.to || "",
+    emailSubject: msg.emailSubject || msg.subject || "",
+    emailMessage: msg.emailMessage || msg.message || "",
+    attachToEmail: msg.attachToEmail === true || msg.asAttachment === true,
+  };
+
+  const result = await fetchInternalJson("/api/files/upload", {
+    method: "POST",
+    body: payload,
+  }, context);
+
+  if (result?.ok) {
+    return {
+      ok: true,
+      path: full,
+      file: result.file || null,
+      mail: result.mail || null,
+    };
+  }
+  return {
+    ok: false,
+    path: full,
+    error: result?.error || result?.message || "share_file_failed",
+    detail: result,
+  };
+}
+
+async function handleListStoredFiles(msg) {
+  const context = msg._context || {};
+  const limit = Number.isFinite(Number(msg.limit)) ? Math.max(1, Math.min(100, Number(msg.limit))) : 20;
+  const result = await fetchInternalJson(`/api/files/my?limit=${limit}`, { method: "GET" }, context);
+  if (result?.ok) return result;
+  return { ok: false, error: result?.error || result?.message || "list_stored_files_failed", detail: result };
+}
+
 function handleDeleteFile(msg) {
   const full = resolveSafePath(msg.path);
+  logTool("[A11 ACTION] " + JSON.stringify({
+    action: 'delete',
+    path: full,
+    user: msg.user || msg.requestedBy || 'unknown',
+    timestamp: Date.now()
+  }));
+  if (SAFE_MODE) {
+    throw new Error('delete_file refused: SAFE_MODE is enabled');
+  }
+  if (!hasDeleteConfirmation(msg)) {
+    throw new Error("delete_file refused: explicit confirmation required (confirmDelete=true and confirm=\"DELETE\")");
+  }
+  assertNotProtectedPath(full);
   makeBackup(msg.path);
   fs.rmSync(full, { recursive: true, force: true });
   logTool("[delete_file] " + full);
@@ -335,8 +491,10 @@ function handleCopy(msg) {
   return { ok: true };
 }
 function handleMove(msg) {
+  const from = resolveSafePath(msg.from);
+  assertNotProtectedPath(from);
   const res = handleCopy(msg);
-  handleDeleteFile({ path: msg.from });
+  fs.rmSync(from, { recursive: true, force: true });
   return res;
 }
 
@@ -378,6 +536,37 @@ function handleUndo(msg) {
   logTool("[undo_last] Restauré depuis " + backup);
   return { ok: true };
 }
+
+const ROUTER_TOOL_REGISTRY = [
+  {
+    name: "share_file",
+    description: "Publie un fichier local dans le stockage A-11 et peut l'envoyer par mail.",
+    schema: {
+      type: "object",
+      properties: {
+        path: { type: "string" },
+        filename: { type: "string" },
+        emailTo: { type: "string" },
+        emailSubject: { type: "string" },
+        emailMessage: { type: "string" },
+        attachToEmail: { type: "boolean" },
+      },
+      required: ["path"],
+      additionalProperties: true,
+    },
+  },
+  {
+    name: "list_stored_files",
+    description: "Liste les fichiers déjà stockés pour l'utilisateur courant.",
+    schema: {
+      type: "object",
+      properties: {
+        limit: { type: "number" },
+      },
+      additionalProperties: true,
+    },
+  },
+];
 
 // ========================================================================
 //   SECTION 5 — TOOL REGISTRY (✅ getTools implémenté)
@@ -423,10 +612,11 @@ async function getTools({ workspaceRoot } = {}) {
 
   // Catalogue depuis module.json
   const dynamicRegistry = await loadModulesCatalog(MODULES_ROOT);
+  const routerRegistry = ROUTER_TOOL_REGISTRY.map((tool) => ({ ...tool }));
 
   // Fusion: si un module existe mais pas d’impl, on le tag (sinon agent va l’appeler et ça va fail)
-  const implNames = new Set(Object.keys(impl));
-  const registry = dynamicRegistry.map(t => ({
+  const implNames = new Set([...Object.keys(impl), ...routerRegistry.map((tool) => tool.name)]);
+  const registry = [...routerRegistry, ...dynamicRegistry].map(t => ({
     ...t,
     description: t.description + (implNames.has(t.name) ? "" : " [NO_IMPL_IN_ROUTER]")
   }));
@@ -527,7 +717,7 @@ function assertDataOnly(toolName, out) {
   return out;
 }
 
-async function runEnvelopeActionsWithPolicy(envelope, userPrompt, toolResults = []) {
+async function runEnvelopeActionsWithPolicy(envelope, userPrompt, toolResults = [], context = {}) {
   envelope = sanitizeActions(envelope, toolResults);
 
   const actions = envelope.actions || [];
@@ -543,7 +733,7 @@ async function runEnvelopeActionsWithPolicy(envelope, userPrompt, toolResults = 
     }
 
     logTool(`[envelope] → ${actName}`);
-    let res = await handleDevAction({ action: actName, ...args });
+    let res = await handleDevAction({ action: actName, ...args, _context: context });
     try {
       res = assertDataOnly(actName, res);
     } catch (e) {
@@ -564,6 +754,7 @@ router.post("/v1/chat/completions", async (req, res) => {
   const model = body.model || "llama3.2:latest";
   const messages = body.messages || [];
   const stream = body.stream === true;
+  const requestContext = getRequestAuthContext(req);
 
   const head = (body.cerbereHead || "maker").toLowerCase();
   const userPrompt = extractUserPrompt(messages || []);
@@ -717,7 +908,7 @@ ${userPrompt}
 
       // actions → exécute + reprompt avec TOOL_RESULTS
       if (envelope.mode === "actions" && Array.isArray(envelope.actions) && envelope.actions.length > 0) {
-        toolResults = await runEnvelopeActionsWithPolicy(envelope, userPrompt, toolResults);
+        toolResults = await runEnvelopeActionsWithPolicy(envelope, userPrompt, toolResults, requestContext);
         loopCount++;
         continue;
       }
@@ -833,6 +1024,13 @@ async function handleDevAction(msg = {}) {
       case "run_qflush_flow":
       case "qflush_flow":
         return await runQflushFlow(msg);
+      case "share_file":
+      case "share-file":
+        return await handleShareFile(msg);
+      case "list_stored_files":
+      case "list-stored-files":
+      case "list_files":
+        return await handleListStoredFiles(msg);
       case "shell_exec":
       case "shell-exec":
         return await shell_exec(msg);
@@ -980,13 +1178,63 @@ function sanitizeAssistantText(text) {
   return step2 || String(text || "").trim();
 }
 
+function summarizeActionsFallback(actionResults = []) {
+  const lines = [];
+
+  for (const entry of actionResults || []) {
+    const tool = String(entry?.tool || "action");
+    const result = entry?.result || {};
+
+    if (result?.ok !== true) {
+      lines.push(`${tool}: échec${result?.error ? ` (${result.error})` : ""}.`);
+      continue;
+    }
+
+    if (tool === "share_file") {
+      const filename = result?.file?.filename || path.basename(String(result?.path || "fichier"));
+      const url = result?.file?.url || "";
+      if (url) {
+        lines.push(`Fichier prêt: ${filename}`);
+        lines.push(`Lien: ${url}`);
+      } else {
+        lines.push(`Fichier stocké: ${filename}.`);
+      }
+      if (result?.mail?.ok && result?.mail?.to) {
+        lines.push(`Mail envoyé à ${result.mail.to}.`);
+      } else if (result?.mail?.ok) {
+        lines.push("Mail envoyé.");
+      }
+      continue;
+    }
+
+    if (tool === "list_stored_files") {
+      const files = Array.isArray(result?.files) ? result.files : [];
+      if (!files.length) {
+        lines.push("Aucun fichier stocké pour le moment.");
+      } else {
+        lines.push(`Fichiers stockés (${files.length}) :`);
+        for (const file of files.slice(0, 5)) {
+          const label = file?.filename || file?.storage_key || "fichier";
+          const url = file?.url ? ` - ${file.url}` : "";
+          lines.push(`- ${label}${url}`);
+        }
+      }
+      continue;
+    }
+
+    lines.push(`${tool}: terminé.`);
+  }
+
+  return lines.join("\n").trim() || "Terminé.";
+}
+
 async function buildDevSummaryWithLLM({ upstreamUrl, model, userPrompt, actionResults, imageUrl }) {
   try {
     const imgBlock = imageUrl ? `\nVoici l'image générée :\n\n![image](${imageUrl})\n` : "";
     const messages = [
       {
         role: "system",
-        content: "Tu es A-11. Résume ce que tu viens de faire. Pas de JSON, pas de code. Réponse claire uniquement.",
+        content: "Tu es A-11. Résume ce que tu viens de faire. Pas de JSON, pas de code. Réponse claire uniquement. Si un résultat contient un lien de fichier, recopie le lien exact dans la réponse.",
       },
       {
         role: "user",
@@ -1045,5 +1293,13 @@ function extractQuery(userPrompt) {
 
 function getActionName(a) {
   return (a?.action || a?.tool || a?.name || "").toString();
+}
+
+function getRequestAuthContext(req) {
+  const headerToken = String(req.headers["x-nez-token"] || "").trim();
+  const bearerToken = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  return {
+    authToken: headerToken || bearerToken,
+  };
 }
 

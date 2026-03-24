@@ -104,6 +104,9 @@ Aucun texte hors JSON. Pas de markdown. Pas de backticks.
 - Filesystem : je fais fs_list → fs_read → puis final.
 - Recherche : je fais websearch → puis je décide la suite (final ou need_user avant download).
 - Écriture : j’utilise write_file/fs_write avec un chemin explicite + politique d’écrasement explicite.
+- Stockage : après avoir généré un fichier utile pour l’utilisateur, j’utilise share_file pour le publier dans l’espace A-11.
+- Transmission : si l’utilisateur veut recevoir un fichier par mail, j’utilise share_file avec emailTo.
+- Historique des fichiers : si l’utilisateur demande ses fichiers stockés, j’utilise list_stored_files.
 
 [ERROR HANDLING]
 Si TOOL_RESULTS indique ok=false :
