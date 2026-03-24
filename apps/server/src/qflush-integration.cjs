@@ -306,7 +306,7 @@ async function initQflush(options = {}) {
  * @returns {Promise<object>} Result of the flow
  */
 async function runQflushFlow(flow, payload) {
-  const remoteUrl = process.env.QFLUSH_REMOTE_URL;
+  const remoteUrl = process.env.QFLUSH_URL || process.env.QFLUSH_REMOTE_URL;
   if (remoteUrl) {
     // Use remote qflush service
     try {

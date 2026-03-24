@@ -3,6 +3,19 @@
 // API Base URL for production (can be overridden via Vite env)
 const API_BASE = (import.meta.env?.VITE_API_BASE_URL) || '';
 
+function getApiUrl(path: string) {
+  const base = API_BASE.replace(/\/$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (!base) return normalizedPath;
+  if (base.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${base}${normalizedPath.slice(4)}`;
+  }
+  if (base === '/api' && normalizedPath === '/api') {
+    return base;
+  }
+  return `${base}${normalizedPath}`;
+}
+
 // Router URL (can be overridden via Vite env)
 const LLM_ROUTER_URL = (import.meta.env?.VITE_LLM_ROUTER_URL) || 'http://127.0.0.1:4545';
 
@@ -23,7 +36,7 @@ export function clearAuthToken() {
 }
 
 export async function login(username: string, password: string) {
-  const res = await fetch('/api/auth/login', {
+  const res = await fetch(getApiUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -75,7 +88,7 @@ export type ChatResponse = {
 // Appel générique POST JSON : pass via backend auth gateway
 async function apiPost(body: unknown) {
   // Route through the protected backend chat endpoint.
-  const url = `${API_BASE}/api/ai`;
+  const url = getApiUrl('/api/ai');
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -94,7 +107,7 @@ async function apiPost(body: unknown) {
 
   // Use credentials for same-origin scenarios if router is same origin
   try {
-    const routerUrlObj = new URL(routerBase);
+    const routerUrlObj = new URL(LLM_ROUTER_URL);
     if (routerUrlObj.origin === location.origin) fetchOptions.credentials = 'include';
   } catch {
     // ignore

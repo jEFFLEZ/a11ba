@@ -12,10 +12,10 @@ const {
 
 // Prevent DeprecationWarning for util._extend by replacing it early with Object.assign
 try {
-  const coreUtil = require('util');
-  if (coreUtil && typeof coreUtil._extend !== 'undefined') coreUtil._extend = Object.assign;
-} catch (e) {
-  // ignore
+  const coreUtil = require('node:util');
+  if (coreUtil?._extend !== undefined) coreUtil._extend = Object.assign;
+} catch (error_) {
+  console.warn('[A11] util bootstrap failed:', error_.message);
 }
 
 // Prefer server-local env (.env.local) for dev, fallback to repo root .env
@@ -46,7 +46,8 @@ const BATCH_SIZE = Number(process.env.BATCH_SIZE) || 4096;
 const PARALLEL = Number(process.env.PARALLEL) || 8;
 
 // Set remote qflush URL for production (allow env override)
-process.env.QFLUSH_REMOTE_URL = process.env.QFLUSH_REMOTE_URL || 'https://qflush-production.up.railway.app';
+process.env.QFLUSH_URL = process.env.QFLUSH_URL || process.env.QFLUSH_REMOTE_URL || 'https://qflush-production.up.railway.app';
+process.env.QFLUSH_REMOTE_URL = process.env.QFLUSH_REMOTE_URL || process.env.QFLUSH_URL;
 
 // -------------------
 
@@ -80,7 +81,8 @@ const axios = require('axios');
 let OpenAI;
 try {
   OpenAI = require('openai');
-} catch (e) {
+} catch (error_) {
+  console.warn('[A11] OpenAI SDK unavailable:', error_.message);
   OpenAI = null;
 }
 
@@ -128,14 +130,16 @@ try {
           console.log('[QFLUSH] Found local qflush executable at', candidate);
           break;
         }
-      } catch (ee) { }
+      } catch (error_) {
+        console.debug('[QFLUSH] candidate check failed:', error_.message);
+      }
     }
     if (!QFLUSH_AVAILABLE) {
       console.log('[QFLUSH] qflush integration not available. Skipping.');
     }
   }
 } catch (e) {
-  console.log('[QFLUSH] qflush detection failed:', e && e.message);
+  console.log('[QFLUSH] qflush detection failed:', e?.message);
 }
 
 // export for other modules to check
@@ -179,7 +183,7 @@ function ensureConvDir() {
       fsMem.mkdirSync(A11_CONV_DIR, { recursive: true });
     }
   } catch (e) {
-    console.warn('[A11][memory] mkdir failed:', e && e.message);
+    console.warn('[A11][memory] mkdir failed:', e?.message);
   }
 }
 
@@ -187,12 +191,12 @@ function appendConversationLog(entry) {
   try {
     ensureConvDir();
     const ts = new Date();
-    const day = ts.toISOString().slice(0, 10).replace(/-/g, '');
+    const day = ts.toISOString().slice(0, 10).replaceAll('-', '');
     const file = pathMem.join(A11_CONV_DIR, `${day}.jsonl`);
     const payload = { ts: ts.toISOString(), ...entry };
     fsMem.appendFileSync(file, JSON.stringify(payload) + '\n', 'utf8');
   } catch (e) {
-    console.warn('[A11][memory] append failed:', e && e.message);
+    console.warn('[A11][memory] append failed:', e?.message);
   }
 }
 // --- Fin bloc mémoire persistante ---
@@ -205,7 +209,7 @@ function ensureMemoDir() {
   try {
     fsMem.mkdirSync(A11_MEMO_DIR, { recursive: true });
   } catch (e) {
-    console.warn('[A11][memo] mkdir failed:', e && e.message);
+    console.warn('[A11][memo] mkdir failed:', e?.message);
   }
 }
 
@@ -226,7 +230,7 @@ function saveMemo(type, data) {
 
     return entry;
   } catch (e) {
-    console.warn('[A11][memo] save failed:', e && e.message);
+    console.warn('[A11][memo] save failed:', e?.message);
     return null;
   }
 }
@@ -248,7 +252,7 @@ function loadAllMemos() {
 
     return entries;
   } catch (e) {
-    console.warn('[A11][memo] load failed:', e && e.message);
+    console.warn('[A11][memo] load failed:', e?.message);
     return [];
   }
 }
@@ -304,14 +308,23 @@ function _find_idle_asset() {
 }
 
 // CORS configuration: allow local dev origins and production origin
-const defaultCorsOrigins = ['http://127.0.0.1:3000', 'http://localhost:5173', 'http://localhost:3000', 'https://funesterie.pro', 'https://alphaonze.netlify.app'];
-const CORS_ORIGINS = (process.env.CORS_ORIGINS && process.env.CORS_ORIGINS.split(',')) || defaultCorsOrigins;
+const defaultCorsOrigins = ['http://127.0.0.1:3000', 'http://localhost:5173', 'http://localhost:3000', 'https://funesterie.pro', 'https://alphaonze.netlify.app', 'https://a11.funesterie.pro'];
+const normalizeOrigin = (origin) => String(origin || '').trim().replace(/\/$/, '');
+const envCorsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(normalizeOrigin)
+  .filter(Boolean);
+const CORS_ORIGINS = (envCorsOrigins.length ? envCorsOrigins : defaultCorsOrigins)
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (e.g., curl, mobile clients)
     if (!origin) return callback(null, true);
-    if (CORS_ORIGINS.indexOf(origin) !== -1) return callback(null, true);
+    const incomingOrigin = normalizeOrigin(origin);
+    if (CORS_ORIGINS.includes(incomingOrigin)) return callback(null, true);
+    console.warn('[A11][CORS] origin denied:', incomingOrigin, 'allowed:', CORS_ORIGINS.join(','));
     return callback(new Error('CORS origin denied'));
   },
   credentials: true,
@@ -346,11 +359,89 @@ try {
   app.use('/api', ttsRouter);
   console.log('[Server] TTS routes mounted under /api');
 } catch ( e) {
-  console.warn('[Server] Failed to register TTS routes:', e && e.message);
+  console.warn('[Server] Failed to register TTS routes:', e?.message);
 }
 
-// Auth Nez (si tu veux la garder pour le reste)
-app.use('/api', nezAuth);
+// ✅ LOGIN ROUTE (public, no auth required)
+app.post('/api/auth/login', express.json(), (req, res) => {
+  const { username, password } = req.body || {};
+  
+  // ⚠️ TEMP: hardcoded credentials
+  if (username === 'admin' && password === '1234') {
+    const token = `nez-${username}-${Date.now()}`;
+    return res.json({
+      success: true,
+      token,
+      user: { id: 'admin', username }
+    });
+  }
+  
+  res.status(401).json({
+    success: false,
+    error: 'Invalid credentials'
+  });
+});
+
+// ✅ AUTH MIDDLEWARE - appliqué SEULEMENT sur /api/ai pour protéger chat
+// /api/auth/login reste public!
+app.use('/api/ai', nezAuth);
+
+// ✅ PROTECTED CHAT ROUTE — /api/ai/chat (auth required via middleware)
+// Centralized proxy to Cerbère (LLM Router) with user context
+app.post('/api/ai/chat', express.json({ limit: '10mb' }), async (req, res) => {
+  try {
+    const cerbereUrl = (process.env.LLM_ROUTER_URL?.trim() || 'http://127.0.0.1:4545')
+      .replace(/\/$/, '') + '/v1/chat/completions';
+    
+    // req.user is available from Nezlephant middleware
+    const user = req.user?.id || 'anonymous';
+    console.log(`[A11][AuthChat] User ${user} calling /api/ai/chat`);
+    
+    // Forward to Cerbère with optional user context
+    const body = {
+      ...req.body,
+      _user: user  // Pass user context to LLM router for potential routing
+    };
+    
+    const upstreamRes = await fetch(cerbereUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      timeout: 60000
+    });
+    
+    // Copy headers from upstream response
+    const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+    res.setHeader('Content-Type', contentType);
+    
+    // Stream or return response
+    if (upstreamRes.ok) {
+      // For SSE or streaming responses, pipe through
+      if (contentType.includes('text/event-stream') || contentType.includes('text/plain')) {
+        res.setHeader('Transfer-Encoding', 'chunked');
+        const buffer = await streamToBuffer(upstreamRes.body);
+        res.end(buffer);
+      } else {
+        // JSON response
+        const data = await upstreamRes.json();
+        res.status(upstreamRes.status).json(data);
+      }
+    } else {
+      // Error response
+      const errorData = await upstreamRes.json().catch(() => ({ error: 'Unknown error' }));
+      res.status(upstreamRes.status).json(errorData);
+    }
+  } catch (err) {
+    console.error('[A11][AuthChat] Proxy error:', err?.message);
+    res.status(502).json({
+      ok: false,
+      error: 'upstream_unreachable',
+      message: String(err?.message)
+    });
+  }
+});
 
 // Serve system prompt for legacy frontend (public, no auth)
 app.get('/api/system-prompt', (_req, res) => {
@@ -362,8 +453,8 @@ app.get('/api/system-prompt', (_req, res) => {
     const text = fs.readFileSync(promptPath, 'utf8');
     return res.json({ ok: true, systemPrompt: text });
   } catch (err) {
-    console.error('[A11] Failed to read system_prompt:', err && err.message);
-    return res.status(500).json({ ok: false, error: (err && err.message) || 'read_error' });
+    console.error('[A11] Failed to read system_prompt:', err?.message);
+    return res.status(500).json({ ok: false, error: err?.message || 'read_error' });
   }
 });
 
@@ -389,7 +480,7 @@ app.get('/api/llm/stats', async (req, res) => {
       return res.json(__stats_cache);
     }
 
-    const upstreamHost = (process.env.LLM_ROUTER_URL && process.env.LLM_ROUTER_URL.trim()) ? process.env.LLM_ROUTER_URL.trim() : (DEFAULT_UPSTREAM || 'http://127.0.0.1:4545');
+    const upstreamHost = process.env.LLM_ROUTER_URL?.trim() || DEFAULT_UPSTREAM || 'http://127.0.0.1:4545';
     const probeUrl = String(upstreamHost).replace(/\/$/, '') + '/api/stats';
     console.log('[A11] Proxying /api/llm/stats ->', probeUrl);
 
@@ -411,14 +502,14 @@ app.get('/api/llm/stats', async (req, res) => {
         stats: json
       });
     } catch (e) {
-      console.warn('[A11][memo] llm_stats save failed:', e && e.message);
+      console.warn('[A11][memo] llm_stats save failed:', e?.message);
     }
     // -------------------------------------
 
     return res.json(json);
   } catch (e) {
-    console.error('[A11] /api/llm/stats proxy error:', e && e.message);
-    return res.status(502).json({ ok: false, error: 'upstream_unreachable', message: String(e && e.message) });
+    console.error('[A11] /api/llm/stats proxy error:', e?.message);
+    return res.status(502).json({ ok: false, error: 'upstream_unreachable', message: String(e?.message) });
   }
 });
 
@@ -432,7 +523,7 @@ app.use(cookieParser());
 // Serve frontend static files from the canonical web public folder only (not server/public_legacy)
 const webPublic = path.resolve(__dirname, '..', 'web', 'dist');
 try {
-  const serveStatic = (process.env.SERVE_STATIC && process.env.SERVE_STATIC.toLowerCase() === 'true') || (process.env.NODE_ENV === 'production');
+  const serveStatic = process.env.SERVE_STATIC?.toLowerCase() === 'true' || process.env.NODE_ENV === 'production';
   if (serveStatic) {
     if (fs.existsSync(webPublic)) {
       app.use(express.static(webPublic, { maxAge: '1d' }));
@@ -444,12 +535,12 @@ try {
     console.log('[A11] Skipping static middleware for web public (DEV mode or SERVE_STATIC!=true)');
   }
 } catch (e) {
-  console.warn('[A11] Could not initialize static middleware for web public:', e && e.message);
+  console.warn('[A11] Could not initialize static middleware for web public:', e?.message);
 }
 
 // Serve legacy-prefixed URLs from the canonical web public folder as well
 try {
-  const serveLegacy = (process.env.SERVE_STATIC && process.env.SERVE_STATIC.toLowerCase() === 'true') || (process.env.NODE_ENV === 'production');
+  const serveLegacy = process.env.SERVE_STATIC?.toLowerCase() === 'true' || process.env.NODE_ENV === 'production';
   if (serveLegacy) {
     if (fs.existsSync(webPublic)) {
       app.use('/legacy', express.static(webPublic, { maxAge: '1d' }));
@@ -459,7 +550,7 @@ try {
     console.log('[A11] Skipping /legacy static middleware (DEV mode)');
   }
 } catch (e) {
-  console.warn('[A11] Could not initialize /legacy static middleware for web public:', e && e.message);
+  console.warn('[A11] Could not initialize /legacy static middleware for web public:', e?.message);
 }
 
 // Ajout des routes /healthz et /
@@ -471,25 +562,49 @@ function getOpenAICompletionsUrl() {
   return base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
 
-function buildOpenAIProxyHeaders(reqHeaders) {
-  const headers = Object.assign({}, reqHeaders || {});
+function getLocalCompletionsUrl() {
+  const base = String(process.env.QFLUSH_URL || process.env.QFLUSH_REMOTE_URL || process.env.LLAMA_BASE || '').trim();
+  if (!base) return null;
+  const normalized = base.replace(/\/$/, '');
+  return normalized.endsWith('/v1') ? `${normalized}/chat/completions` : `${normalized}/v1/chat/completions`;
+}
+
+function getCompletionsUrlForRequest(body) {
+  const provider = String(body?.provider || '').trim().toLowerCase();
+  if (provider === 'local') {
+    return getLocalCompletionsUrl();
+  }
+  return getOpenAICompletionsUrl();
+}
+
+function buildOpenAIProxyHeaders(reqHeaders, options = {}) {
+  const provider = String(options.provider || '').trim().toLowerCase();
+  const headers = reqHeaders ? { ...reqHeaders } : {};
   delete headers.host;
   headers['content-type'] = 'application/json';
-  if (!headers.authorization && process.env.OPENAI_API_KEY) {
+  if (provider !== 'local' && !headers.authorization && process.env.OPENAI_API_KEY) {
     headers.authorization = `Bearer ${process.env.OPENAI_API_KEY}`;
   }
   return headers;
 }
 
 async function proxyChatToOpenAI(req, res) {
-  const upstreamUrl = getOpenAICompletionsUrl();
-  console.log('[A11] Proxying chat ->', upstreamUrl);
+  const provider = String(req.body?.provider || '').trim().toLowerCase();
+  const upstreamUrl = getCompletionsUrlForRequest(req.body);
+  if (!upstreamUrl) {
+    return res.status(500).json({
+      ok: false,
+      error: 'missing_local_upstream',
+      message: 'provider=local requires QFLUSH_URL (or QFLUSH_REMOTE_URL / LLAMA_BASE)'
+    });
+  }
+  console.log('[A11] Proxying chat ->', upstreamUrl, `(provider=${provider || 'openai'})`);
 
   try {
     const upstreamRes = await axios({
       method: 'post',
       url: upstreamUrl,
-      headers: buildOpenAIProxyHeaders(req.headers),
+      headers: buildOpenAIProxyHeaders(req.headers, { provider }),
       data: req.body && Object.keys(req.body).length ? req.body : undefined,
       timeout: 60000,
     });
@@ -510,18 +625,16 @@ async function proxyChatToOpenAI(req, res) {
         response: data
       });
     } catch (e) {
-      console.warn('[A11][memory] log chat_turn failed:', e && e.message);
+      console.warn('[A11][memory] log chat_turn failed:', e?.message);
     }
 
     return res.status(upstreamRes.status).json(data);
   } catch (err) {
     console.error('[A11] Error proxying chat ->', upstreamUrl, err && (err.message || err.toString()));
-    if (err.response && err.response.data) {
-      try {
-        return res.status(err.response.status || 502).json(err.response.data);
-      } catch (e) { /* ignore */ }
+    if (err.response?.data) {
+      return res.status(err.response.status || 502).json(err.response.data);
     }
-    return res.status(502).json({ ok: false, error: 'upstream_unreachable', message: String(err && err.message) });
+    return res.status(502).json({ ok: false, error: 'upstream_unreachable', message: String(err?.message) });
   }
 }
 
@@ -558,19 +671,20 @@ if (globalThis.__A11_DEFAULT_UPSTREAM === undefined) {
   const host = '127.0.0.1';
   // default to llama-server port 8000 when LLAMA_BASE is not set
   const port = process.env.LLAMA_PORT || '8000';
+  const configuredLlmBase = process.env.LLAMA_BASE?.trim() || process.env.QFLUSH_URL?.trim() || process.env.QFLUSH_REMOTE_URL?.trim();
   // If a local LLM router is configured, prefer it as the default upstream
-  if (process.env.LLM_ROUTER_URL && process.env.LLM_ROUTER_URL.trim()) {
+  if (process.env.LLM_ROUTER_URL?.trim()) {
     globalThis.__A11_DEFAULT_UPSTREAM = process.env.LLM_ROUTER_URL.trim();
     console.log('[Alpha Onze] Using LLM router as DEFAULT_UPSTREAM =', globalThis.__A11_DEFAULT_UPSTREAM);
   } else {
-    globalThis.__A11_DEFAULT_UPSTREAM = (process.env.LLAMA_BASE && process.env.LLAMA_BASE.trim()) ? process.env.LLAMA_BASE : `http://${host}:${port}`;
+    globalThis.__A11_DEFAULT_UPSTREAM = configuredLlmBase || `http://${host}:${port}`;
   }
 }
 const DEFAULT_UPSTREAM = globalThis.__A11_DEFAULT_UPSTREAM;
 
 // Determine backend mode from environment. Defaults to 'local' for LLaMA usage.
 // Expose configured backend and LLAMA_BASE for diagnostics.
-const LLAMA_BASE_ENV = process.env.LLAMA_BASE && process.env.LLAMA_BASE.trim();
+const LLAMA_BASE_ENV = process.env.LLAMA_BASE?.trim() || process.env.QFLUSH_URL?.trim() || process.env.QFLUSH_REMOTE_URL?.trim();
 const RAW_BACKEND = String(process.env.BACKEND || '').trim().toLowerCase();
 const BACKEND = (LLAMA_BASE_ENV ? 'local' : (RAW_BACKEND || 'local'));
 if (LLAMA_BASE_ENV && RAW_BACKEND !== 'local') {
@@ -582,17 +696,17 @@ let power1, power2, power3;
 try {
   power1 = require('./dist/a11/power1');
 } catch (e) {
-  console.warn('[A11] power1 non chargé:', e && e.message);
+  console.warn('[A11] power1 non chargé:', e?.message);
 }
 try {
   power2 = require('./dist/a11/power2');
 } catch (e) {
-  console.warn('[A11] power2 non chargé:', e && e.message);
+  console.warn('[A11] power2 non chargé:', e?.message);
 }
 try {
   power3 = require('./dist/a11/power3');
 } catch (e) {
-  console.warn('[A11] power3 non chargé:', e && e.message);
+  console.warn('[A11] power3 non chargé:', e?.message);
 }
 globalThis.power1 = power1;
 globalThis.power2 = power2;
@@ -632,7 +746,7 @@ app.post('/ai', async (req, res) => {
       output = qflush.process(input);
     } else {
       // Mode LLM : proxy vers le LLM router
-      const upstreamHost = (process.env.LLM_ROUTER_URL && process.env.LLM_ROUTER_URL.trim()) ? process.env.LLM_ROUTER_URL.trim() : DEFAULT_UPSTREAM;
+      const upstreamHost = process.env.LLM_ROUTER_URL?.trim() || DEFAULT_UPSTREAM;
       const upstreamUrl = String(upstreamHost).replace(/\/$/, '') + '/v1/chat/completions';
 
       const upstreamRes = await axios.post(upstreamUrl, {
@@ -680,12 +794,12 @@ async function callA11LLM(messages) {
 function summarizeCerbereResults(cerbere) {
   try {
     if (!cerbere) return 'Actions exécutées par Cerbère.';
-    const actions =
-      Array.isArray(cerbere.results)
-        ? cerbere.results
-        : Array.isArray(cerbere.actions)
-          ? cerbere.actions
-          : [];
+    let actions = [];
+    if (Array.isArray(cerbere.results)) {
+      actions = cerbere.results;
+    } else if (Array.isArray(cerbere.actions)) {
+      actions = cerbere.actions;
+    }
     const parts = actions.map((a) => {
       const ok = a?.result?.ok ?? a?.ok;
       const tool = a?.name || a?.tool || 'action';
@@ -700,12 +814,12 @@ function summarizeCerbereResults(cerbere) {
 }
 
 function extractImagePathFromCerbere(cerbere) {
-  const actions =
-    cerbere && Array.isArray(cerbere.results)
-      ? cerbere.results
-      : cerbere && Array.isArray(cerbere.actions)
-        ? cerbere.actions
-        : [];
+  let actions = [];
+  if (Array.isArray(cerbere?.results)) {
+    actions = cerbere.results;
+  } else if (Array.isArray(cerbere?.actions)) {
+    actions = cerbere.actions;
+  }
   for (const a of actions) {
     const tool = a?.name || a?.tool;
     const r = a?.result || {};
@@ -744,7 +858,7 @@ app.post('/api/agent', express.json(), async (req, res) => {
         : path.join(WORKSPACE_ROOT, relativeImagePath);
 
       // chemin relatif par rapport au workspace pour /files
-      const relFromRoot = path.relative(WORKSPACE_ROOT, absPath).replace(/\\/g, '/');
+      const relFromRoot = path.relative(WORKSPACE_ROOT, absPath).replaceAll('\\', '/');
       publicImageUrl = `/files/${relFromRoot}`;
 
       // On enrichit le message avec le markdown de l’image
@@ -762,7 +876,7 @@ app.post('/api/agent', express.json(), async (req, res) => {
         cerbere
       });
     } catch (e) {
-      console.warn('[A11][memory] log agent_actions failed:', e && e.message);
+      console.warn('[A11][memory] log agent_actions failed:', e?.message);
     }
     // ---------------------------------------
 
@@ -777,7 +891,7 @@ app.post('/api/agent', express.json(), async (req, res) => {
     console.error('[A11][agent] error:', e);
     return res.status(500).json({
       ok: false,
-      error: String(e && e.message)
+      error: String(e?.message)
     });
   }
 });
@@ -807,7 +921,7 @@ app.get('/api/a11/memory/conversations', (req, res) => {
       try {
         raw = fsMem.readFileSync(full, 'utf8');
       } catch (e) {
-        console.warn('[A11][memory] read file failed:', full, e && e.message);
+        console.warn('[A11][memory] read file failed:', full, e?.message);
         continue;
       }
       const lines = raw.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -815,7 +929,7 @@ app.get('/api/a11/memory/conversations', (req, res) => {
         try {
           entries.push(JSON.parse(line));
         } catch (e) {
-          console.warn('[A11][memory] JSON parse error in', full, e && e.message);
+          console.warn('[A11][memory] JSON parse error in', full, e?.message);
         }
       }
     }
@@ -824,8 +938,8 @@ app.get('/api/a11/memory/conversations', (req, res) => {
 
     res.json({ ok: true, entries });
   } catch ( e) {
-    console.error('[A11][memory] read failed:', e && e.message);
-    res.status(500).json({ ok: false, error: String(e && e.message) });
+    console.error('[A11][memory] read failed:', e?.message);
+    res.status(500).json({ ok: false, error: String(e?.message) });
   }
 });
 /// --- Fin API mémoire ---
@@ -866,8 +980,8 @@ app.get('/api/a11/memo/:id', (req, res) => {
     const memo = JSON.parse(raw);
     return res.json({ ok: true, memo });
   } catch (e) {
-    console.error('[A11][memo] read memo failed:', e && e.message);
-    return res.status(500).json({ ok: false, error: e && e.message });
+    console.error('[A11][memo] read memo failed:', e?.message);
+    return res.status(500).json({ ok: false, error: e?.message });
   }
 });
 
@@ -901,7 +1015,7 @@ function snapshotOnStartup() {
     });
     console.log('[A11][memo] env_snapshot saved on startup');
   } catch (e) {
-    console.warn('[A11][memo] env_snapshot failed:', e && e.message);
+    console.warn('[A11][memo] env_snapshot failed:', e?.message);
   }
 }
 snapshotOnStartup();
@@ -920,8 +1034,8 @@ app.post('/api/a11/memo/snapshot/qflush', async (req, res) => {
     }
     return res.json({ ok: true, memo: entry });
   } catch ( e) {
-    console.error('[A11][memo] qflush snapshot failed:', e && e.message);
-    return res.status(500).json({ ok: false, error: e && e.message });
+    console.error('[A11][memo] qflush snapshot failed:', e?.message);
+    return res.status(500).json({ ok: false, error: e?.message });
   }
 });
 
@@ -941,7 +1055,7 @@ function writeMemoryKeyValue(key, value) {
     fsMem.writeFileSync(A11_MEMORY_KV_FILE, JSON.stringify(data, null, 2), 'utf8');
     return { ok: true, key, value };
   } catch (e) {
-    return { ok: false, error: e && e.message };
+    return { ok: false, error: e?.message };
   }
 }
 
@@ -970,7 +1084,7 @@ if (!LISTENING) {
       console.log(`[A11] Server listening on http://0.0.0.0:${PORT}`);
     });
   } catch (e) {
-    console.error('[A11] Failed to start server:', e && e.message);
+    console.error('[A11] Failed to start server:', e?.message);
     process.exit(1);
   }
 }

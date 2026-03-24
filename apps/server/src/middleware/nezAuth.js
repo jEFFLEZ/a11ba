@@ -50,7 +50,22 @@ function nezAuth(req, res, next) {
     return next();
   }
 
-  const headerToken = (req.header('X-NEZ-TOKEN') || '').trim();
+  // Try multiple header formats for auth flexibility
+  let headerToken = (req.header('X-NEZ-TOKEN') || '').trim();
+  
+  // Fallback to Authorization: Bearer xxx
+  if (!headerToken) {
+    const authHeader = (req.header('Authorization') || '').trim();
+    if (authHeader.startsWith('Bearer ')) {
+      headerToken = authHeader.slice(7);
+    }
+  }
+  
+  // Fallback to x-api-key
+  if (!headerToken) {
+    headerToken = (req.header('x-api-key') || '').trim();
+  }
+  
   if (!headerToken) {
     return res.status(403).json({
       error: 'A11_Nezlephant_Filter',

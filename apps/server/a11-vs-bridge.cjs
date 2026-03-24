@@ -20,8 +20,8 @@ async function postJson(path, body) {
   let json;
   try {
     json = JSON.parse(text);
-  } catch (e) {
-    throw new Error(`Invalid JSON from VS: ${text}`);
+  } catch (error_) {
+    throw new Error(`Invalid JSON from VS: ${text}`, { cause: error_ });
   }
 
   if (!res.ok || json.ok === false) {

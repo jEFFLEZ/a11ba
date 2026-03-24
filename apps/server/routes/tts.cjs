@@ -1,7 +1,7 @@
-const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
-const http = require('http');
+const path = require('node:path');
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
+const http = require('node:http');
 const express = require('express');
 const router = express.Router();
 
@@ -15,13 +15,13 @@ function listOnnxFiles(modelsDir) {
       if (it.isDirectory()) {
         walk(full, rel);
       } else if (it.isFile() && it.name.toLowerCase().endsWith('.onnx')) {
-        results.push(rel.replace(/\\/g, '/'));
+        results.push(rel.replaceAll('\\', '/'));
       }
     }
   }
   try {
     walk(modelsDir);
-  } catch (e) {
+  } catch {
     return [];
   }
   return results;
@@ -60,8 +60,8 @@ function callPiperHttp(text, model) {
             try {
               const json = JSON.parse(body);
               return resolve({ path: p, body: json });
-            } catch (e) {
-              return resolve({ path: p, body: body });
+            } catch {
+              return resolve({ path: p, body });
             }
           }
           // non-2xx -> try next candidate or fail
@@ -112,7 +112,9 @@ function spawnPiperLocal(text, model) {
       try {
         if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
         if (!fs.existsSync(ttsDir)) fs.mkdirSync(ttsDir, { recursive: true });
-      } catch (e) { /* ignore */ }
+      } catch (error_) {
+        console.warn('[TTS][Piper] failed to prepare output directory:', error_.message);
+      }
 
       const ts = Date.now();
       const outFileName = `tts-out-${ts}.wav`;
@@ -149,7 +151,7 @@ function spawnPiperLocal(text, model) {
       p.on('error', (err) => {
         if (responded) return;
         responded = true;
-        return reject(new Error('tts_spawn_error: ' + String(err && err.message)));
+        return reject(new Error('tts_spawn_error: ' + String(err?.message)));
       });
 
     } catch (err) {
@@ -186,7 +188,7 @@ router.get('/tts/health', (req, res) => {
           try {
             const json = JSON.parse(body || '{}');
             return res.json({ ok: true, statusCode, path: p, body: json });
-          } catch (e) {
+          } catch {
             return res.json({ ok: true, statusCode, path: p, body });
           }
         }
@@ -200,7 +202,7 @@ router.get('/tts/health', (req, res) => {
     reqProbe.on('error', (err) => {
       tried++;
       if (tried < candidates.length) return tryPath(tried);
-      return res.status(503).json({ ok: false, error: 'tts_unreachable', message: String(err && err.message) });
+      return res.status(503).json({ ok: false, error: 'tts_unreachable', message: String(err?.message) });
     });
 
     reqProbe.on('timeout', () => {

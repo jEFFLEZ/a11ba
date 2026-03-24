@@ -1,9 +1,9 @@
 require("dotenv").config();
-const path = require("path");
+const path = require("node:path");
 const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
-const child_process = require("child_process");
+const fs = require("node:fs");
+const child_process = require("node:child_process");
 
 // -------------------------------------------
 // DEV_MODE doit être défini avant toute utilisation
@@ -25,7 +25,7 @@ const {
 /// IMPORTANT: on utilise TOOL_IMPL comme “catalogue”
 const { TOOL_IMPL } = require("./src/a11/tools-dispatcher.cjs");
 
-const fsp = require("fs").promises;
+const fsp = require("node:fs/promises");
 
 const DATA_ROOT = process.env.A11_DATA_ROOT || "D:/A12";
 const LTM_DIR = path.join(DATA_ROOT, "a11_memory", "long_term");
@@ -89,7 +89,7 @@ function logWarn(msg) {
 }
 
 // Workspace : dossier dans lequel A-11 a le droit d’écrire
-const DEFAULT_WORKSPACE = "D:\\A12";
+const DEFAULT_WORKSPACE = String.raw`D:\A12`;
 let WORKSPACE_ROOT = path.resolve(process.env.A11_WORKSPACE_ROOT || DEFAULT_WORKSPACE);
 console.log("[Cerbère] Workspace root:", WORKSPACE_ROOT);
 
@@ -246,8 +246,8 @@ function makeBackup(relPath) {
     const fullPath = resolveSafePath(relPath);
     if (!fs.existsSync(fullPath)) return;
     ensureBackupDir();
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backupName = relPath.replace(/[\\/]/g, "__") + "__" + stamp;
+    const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+    const backupName = relPath.replaceAll(/[\\/]/g, "__") + "__" + stamp;
     const backupPath = path.join(BACKUP_DIR, backupName);
     fs.copyFileSync(fullPath, backupPath);
     logTool(`Backup créé : ${backupName}`);
@@ -258,11 +258,11 @@ function makeBackup(relPath) {
 }
 function getLastBackup(relPath) {
   if (!fs.existsSync(BACKUP_DIR)) return null;
-  const prefix = relPath.replace(/[\\/]/g, "__") + "__";
+  const prefix = relPath.replaceAll(/[\\/]/g, "__") + "__";
   const files = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith(prefix));
   if (!files.length) return null;
-  files.sort();
-  return path.join(BACKUP_DIR, files[files.length - 1]);
+  files.sort((left, right) => left.localeCompare(right));
+  return path.join(BACKUP_DIR, files.at(-1));
 }
 
 // 4.3 — FILE OPERATIONS
@@ -350,7 +350,7 @@ function handleApplyPatch(msg) {
   if (!search || replace === undefined) return { ok: false, error: "Invalid patch" };
   if (!src.includes(search)) return { ok: false, error: "Search term not found" };
   makeBackup(msg.path);
-  const output = src.replace(search, replace);
+  const output = src.replaceAll(search, replace);
   fs.writeFileSync(full, output, "utf8");
   logTool("[apply_patch] " + full);
   return { ok: true };
@@ -397,7 +397,7 @@ async function loadModulesCatalog(modulesRoot = MODULES_ROOT) {
         const name = (meta.name || meta.tool || meta.id || ent.name || "").toString();
         if (!name) continue;
         // Autorisation stricte
-        if (!(meta.enabled === true || MODULES_WHITELIST.includes(name))) continue;
+        if (!(meta.enabled === true || MODULES_WHITELIST.has(name))) continue;
         const description = (meta.description || meta.desc || meta.summary || "").toString() || "module tool";
         const schema =
           meta.schema ||
@@ -432,8 +432,8 @@ async function getTools({ workspaceRoot } = {}) {
   }));
 
   // Ajoute aussi les tools "impl-only" pas décrites en module.json
-  for (const name of Object.keys(impl).sort()) {
-    if (!registry.find(r => r.name === name)) {
+  for (const name of Object.keys(impl).sort((left, right) => left.localeCompare(right))) {
+    if (!registry.some((r) => r.name === name)) {
       registry.push({
         name,
         description: "tool",
@@ -454,7 +454,7 @@ async function runDynamicModuleTool(toolName, args) {
   }
   try {
     const meta = JSON.parse(await fsp.readFile(jsonPath, "utf8"));
-    if (!(meta.enabled === true || MODULES_WHITELIST.includes(toolName))) {
+    if (!(meta.enabled === true || MODULES_WHITELIST.has(toolName))) {
       return { ok: false, error: `[MODULE_DISABLED] Module ${toolName} is not enabled or whitelisted` };
     }
     delete require.cache[require.resolve(entry)];
@@ -490,11 +490,11 @@ function sanitizeActions(envelope, toolResults) {
     if (name !== "download_file") return true;
     const url = a.arguments?.url || a.input?.url || "";
     if (isPlaceholderUrl(url)) {
-      logWarn `[Cerbère] Action download_file supprimée (placeholder URL): ${url}`;
+      logWarn(`[Cerbère] Action download_file supprimée (placeholder URL): ${url}`);
       return false;
     }
     if (!isUrlProven(url, toolResults)) {
-      logWarn `[Cerbère] Action download_file supprimée (URL non prouvée): ${url}`;
+      logWarn(`[Cerbère] Action download_file supprimée (URL non prouvée): ${url}`);
       return false;
     }
     return true;
@@ -704,11 +704,6 @@ ${userPrompt}
       // --- PATCH: Ignore need_user that just relays websearch result ---
       if (looksLikeAskingWebsearchResult(envelope) && toolResults.length > 0) {
         logWarn("[Cerbère][ENFORCER] Maker demande la réponse du tool websearch, on renvoie le résultat directement.");
-        envelope = {
-          version: "a11-envelope-1",
-          mode: "final",
-          result: toolResults[toolResults.length - 1]?.result || {}
-        };
         break;
       }
 
@@ -751,12 +746,12 @@ ${userPrompt}
 module.exports = router;
 
 // Ajoute la whitelist en haut du fichier
-const MODULES_WHITELIST = [
+const MODULES_WHITELIST = new Set([
   "generate_pdf",
   "zip",
   "unzip",
   // Ajoute ici les noms sûrs que tu veux autoriser
-];
+]);
 
 // Remplace la fonction handleDevAction par une version avec websearch normalisé
 async function handleDevAction(msg = {}) {
@@ -853,8 +848,10 @@ function normalizeWebsearchArgs(args = {}) {
 function toolsCatalogText(registry = []) {
   const lines = ["[TOOLS_CATALOG]"];
   for (const t of registry) {
-    lines.push(`- ${t.name}: ${t.description || "no_desc"}`);
-    lines.push(`  schema=${JSON.stringify(t.schema)}`);
+    lines.push(
+      `- ${t.name}: ${t.description || "no_desc"}`,
+      `  schema=${JSON.stringify(t.schema)}`
+    );
   }
   return lines.join("\n");
 }
@@ -878,9 +875,11 @@ function cleanJsonCandidate(text = "") {
     if (inString) {
       if (c === '"' && prev !== "\\") inString = false;
     } else {
-      if (c === '"') inString = true;
-      else if (c === "{") depth++;
-      else if (c === "}") {
+      if (c === '"') {
+        inString = true;
+      } else if (c === "{") {
+        depth++;
+      } else if (c === "}") {
         depth--;
         if (depth === 0) return s.slice(start, i + 1);
       }
@@ -898,20 +897,19 @@ function tryParseA11Envelope(raw) {
     obj = JSON.parse(trimmed);
   } catch {
     // Tentative de réparation : ajoute une } si manquante
-    if (!trimmed.endsWith("}")) {
-      try {
-        obj = JSON.parse(trimmed + "}");
-      } catch {
-        return null;
-      }
-    } else {
+    if (trimmed.endsWith("}")) {
+      return null;
+    }
+    try {
+      obj = JSON.parse(trimmed + "}");
+    } catch {
       return null;
     }
   }
 
-  if (obj && obj.version === "a11-envelope-1" && obj.mode === "actions" && Array.isArray(obj.actions)) return obj;
+  if (obj?.version === "a11-envelope-1" && obj.mode === "actions" && Array.isArray(obj.actions)) return obj;
 
-  if (obj && obj.version === "a11-action-1" && obj.action && typeof obj.action.tool === "string") {
+  if (obj?.version === "a11-action-1" && typeof obj.action?.tool === "string") {
     return {
       version: "a11-envelope-1",
       mode: "actions",
@@ -966,13 +964,13 @@ async function buildDevSummaryWithLLM({ upstreamUrl, model, userPrompt, actionRe
 
 // --- PATCH: Anti-hallucination URL enforcer ---
 function looksLikeAskingForUrl(envelope) {
-  if (!envelope || envelope.mode !== "need_user") return false;
+  if (envelope?.mode !== "need_user") return false;
   const q = (envelope.question || "").toLowerCase();
   return q.includes("url") && q.includes("image");
 }
 
 function looksLikeAskingWebsearchResult(envelope) {
-  if (!envelope || envelope.mode !== "need_user") return false;
+  if (envelope?.mode !== "need_user") return false;
   const q = (envelope.question || "").toLowerCase();
   return (
     q.includes("réponse de la recherche web") ||
@@ -990,9 +988,9 @@ function isFindImagePrompt(userPrompt) {
 }
 
 function extractQuery(userPrompt) {
-  let p = userPrompt.replace(/\[DEV_ENGINE\]/gi, "").trim();
+  let p = userPrompt.replaceAll(/\[DEV_ENGINE\]/gi, "").trim();
   const m = p.match(/(?:cherche|trouve|find)(.*)/i);
-  if (m && m[1]) return m[1].trim();
+  if (m?.[1]) return m[1].trim();
   return p;
 }
 

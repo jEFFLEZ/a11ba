@@ -15,8 +15,11 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = process.env.LLM_ROUTER_PORT || process.env.PORT || 4545;
 
 // Backend configuration
+const QFLUSH_BASE = process.env.QFLUSH_URL || process.env.QFLUSH_REMOTE_URL || null;
+const LLAMA_LOCAL_FALLBACK = process.env.NODE_ENV === 'production' ? null : "http://127.0.0.1:8000";
+
 const BACKENDS = {
-  llama_local: process.env.LLAMA_BASE || "http://127.0.0.1:8000",
+  llama_local: process.env.LLAMA_BASE || QFLUSH_BASE || LLAMA_LOCAL_FALLBACK,
   ollama: "http://127.0.0.1:11434",
   openai: process.env.OPENAI_API_URL || null
 };
@@ -26,7 +29,7 @@ console.log('[Cerbère] Available backends:', BACKENDS);
 
 // Backend selection based on model
 function selectBackend(model) {
-  if (!model) return BACKENDS.llama_local;
+  if (!model) return BACKENDS.llama_local || BACKENDS.openai || BACKENDS.ollama;
   
   const modelLower = String(model).toLowerCase();
   
@@ -44,7 +47,7 @@ function selectBackend(model) {
   }
   
   // LLaMA models (default)
-  return BACKENDS.llama_local;
+  return BACKENDS.llama_local || BACKENDS.openai || BACKENDS.ollama;
 }
 
 // DEV ENGINE: Build developer-optimized prompt

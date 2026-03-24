@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { fetchA11HistoryList, fetchA11Conversation } from "./lib/api";
+import { fetchA11HistoryList, fetchA11Conversation, login, logout, getAuthToken } from "./lib/api";
 import { A11HistoryPanel } from "./components/A11HistoryPanel";
 import ReactMarkdown from "react-markdown";
 import "./index.css";
@@ -7,13 +7,11 @@ import {
   initSpeech,
   startMic,
   stopMic,
-  isSpeaking,
   speak,
   cancelSpeech,
 } from "./lib/speech";
 import handleImportFiles from "./lib/importer";
-import { mountA11AvatarUI } from "./lib/avatar-ui";
-import { chatCompletion, callA11Agent, type A11ChatMessage, type Provider } from "./lib/api";
+import { chatCompletion, type Provider } from "./lib/api";
 
 type Role = "user" | "assistant" | "system";
 
@@ -34,23 +32,83 @@ interface LlmStats {
 
 const DEFAULT_SYSTEM_NINDO =
   "Tu es A-11, assistant local NOSSEN. Reste concis, orienté action, et utilise les capacités locales (VSIX, Qflush, Cerbère) quand c’est pertinent.";
+// ✅ LOGIN PANEL
+function LoginPanel({ onLoginSuccess }: readonly { onLoginSuccess: () => void }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("1234");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await login(username, password);
+      onLoginSuccess();
+    } catch (err) {
+      setError((err as Error).message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", gap: "20px" }}>
+      <h1>🔐 A-11 Login</h1>
+      <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "15px", minWidth: "300px" }}>
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          disabled={loading}
+          style={{ padding: "10px", borderRadius: "4px", border: "1px solid #ccc" }}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          disabled={loading}
+          style={{ padding: "10px", borderRadius: "4px", border: "1px solid #ccc" }}
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            padding: "10px 20px",
+            borderRadius: "4px",
+            border: "none",
+            background: "#007bff",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: "bold"
+          }}
+        >
+          {loading ? "Logging in..." : "Login"}
+        </button>
+        {error && <div style={{ color: "red", fontSize: "14px" }}>{error}</div>}
+      </form>
+      <p style={{ fontSize: "12px", color: "#999" }}>Demo: admin / 1234</p>
+    </div>
+  );
+}
 // MuteButton : icône seule, contrôle global du son
 function MuteButton() {
   const [muted, setMuted] = useState(false);
 
   useEffect(() => {
     if (!muted) {
-      if ((window as any).a11_speak_orig) {
-        (window as any).speak = (window as any).a11_speak_orig;
+      if ((globalThis as any).a11_speak_orig) {
+        (globalThis as any).speak = (globalThis as any).a11_speak_orig;
       }
       return;
     }
-    if (!(window as any).a11_speak_orig) (window as any).a11_speak_orig = speak;
-    (window as any).speak = () => {};
+    if (!(globalThis as any).a11_speak_orig) (globalThis as any).a11_speak_orig = speak;
+    (globalThis as any).speak = () => {};
     cancelSpeech();
     return () => {
-      if ((window as any).a11_speak_orig) (window as any).speak = (window as any).a11_speak_orig;
+      if ((globalThis as any).a11_speak_orig) (globalThis as any).speak = (globalThis as any).a11_speak_orig;
     };
   }, [muted]);
 
@@ -71,6 +129,7 @@ function MuteButton() {
 }
 
 export function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -80,15 +139,21 @@ export function App() {
     },
   ]);
   const [ttsFallback, setTtsFallback] = useState(false);
-  const [speechAvailable, setSpeechAvailable] = useState(false);
+
+  // Check if already authenticated on mount
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [stats, setStats] = useState<LlmStats | null>(null);
-  const [apiOk, setApiOk] = useState<boolean | null>(null);
+  const stats: LlmStats | null = null;
   const [voiceListening, setVoiceListening] = useState(false);
-  const [audioPlaying, setAudioPlaying] = useState(false);
+  const audioPlaying = false;
   const [devMode, setDevMode] = useState(false);
-  const [speaking, setSpeaking] = useState(false); // pour l'avatar animé
+  const speaking = false;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const toggleLockRef = useRef(false);
   const [model, setModel] = useState("gpt-4o-mini");
@@ -168,7 +233,7 @@ export function App() {
   }
 
   function onImportClick() {
-    fileInputRef.current && fileInputRef.current.click();
+    fileInputRef.current?.click();
   }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -196,18 +261,18 @@ export function App() {
   // Speech recognition callback
   useEffect(() => {
     initSpeech((txt: string, isFinal?: boolean) => {
-      if (!isFinal) {
-        setInput((_) => txt);
-      } else {
+      if (isFinal) {
         setInput(""); // vide l'input
         sendMessage(txt); // envoie direct le texte reconnu
+      } else {
+        setInput(() => txt);
       }
     });
   }, []);
 
   // Modifie la fonction sendMessage pour accepter un texte forcé
   async function sendMessage(forcedText?: string) {
-    const text = (forcedText !== undefined ? forcedText : input).trim();
+    const text = (forcedText ?? input).trim();
     if (!text || sending) return;
 
     // Ajout du préfixe DEV_ENGINE si mode dev
@@ -252,11 +317,9 @@ export function App() {
       });
 
       // play TTS for every bot response unless muted
-      try {
-        if (typeof window !== "undefined" && typeof (window as any).speak === "function") {
-          (window as any).speak(String(assistantText), { lang: "fr-FR" });
-        }
-      } catch {}
+      if (typeof (globalThis as any).speak === "function") {
+        (globalThis as any).speak(String(assistantText), { lang: "fr-FR" });
+      }
     } catch (err: any) {
       const errMsg: ChatMessage = {
         id: `e-${Date.now()}`,
@@ -289,7 +352,9 @@ export function App() {
       cancelSpeech();
       return;
     }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (globalThis as any).SpeechRecognition ||
+      (globalThis as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       if (toggleLockRef.current) {
         console.log("[A11] toggle ignored due to lock");
@@ -331,9 +396,11 @@ export function App() {
     const next = !ttsFallback;
     setTtsFallback(next);
     console.log('[A11] toggleTtsOnly ->', next);
-    try {
-      if (next) localStorage.setItem('a11:tts-only', '1'); else localStorage.removeItem('a11:tts-only');
-    } catch (e) {}
+    if (next) {
+      localStorage.setItem('a11:tts-only', '1');
+    } else {
+      localStorage.removeItem('a11:tts-only');
+    }
   }
 
   // Rename chat
@@ -405,7 +472,44 @@ export function App() {
       parts.push(`# NINDO SESSION\n${nindoLayers.session}`);
     }
     parts.push(
-      `# MODE DEV (A-11 DEVELOPER ENGINE)\n- Tu te comportes comme un ingénieur logiciel dans un vrai workspace local.\n- Tu peux proposer des actions JSON (mode \"actions\") pour Cerbère (write_file, generate_pdf, etc.).\n- Tu évites les actions destructrices.\n- Tu ne t'inventes pas de problème : si tu n'as pas assez de contexte, tu demandes des fichiers / erreurs.\n\n- Quand l'utilisateur demande un PDF explicatif (cours, fiche, dossier, etc.),\n  tu dois créer AU MOINS 4 sections détaillées, avec plusieurs paragraphes.\n- Utilise de préférence la structure :\n  sections = [\n    { "heading": "Introduction", "text": "...", "images": [...] },\n    { "heading": "Partie 1 : ...", "text": "...", "images": [...] },\n    { "heading": "Partie 2 : ...", "text": "...", "images": [...] },\n    { "heading": "Conclusion", "text": "..." }\n  ]\n- Pour inclure une image dans le PDF, elle doit déjà être présente sur le disque.\n  D'abord tu utilises l'action \"download_file\" pour télécharger l'image dans \"docs/...\",\n  ensuite tu passes ce chemin dans \"sections[].images\".\n\nEN MODE DEV (fichiers / workspace) :\n- Si l'utilisateur demande de CRÉER, LIRE, MODIFIER un fichier, un PDF, une image, etc.,\n  TU NE RÉPONDS PAS en texte.\n- Tu renvoies UNIQUEMENT un JSON valide de la forme :\n\n{ \"mode\": \"actions\", \"actions\": [ { \"action\": \"write_file\", \"path\": \"docs/test.txt\", \"content\": \"Contenu du fichier...\" } ] }\n\n- Pour CRÉER / MODIFIER un fichier texte : utilise \"write_file\" (champ \"content\" en texte).\n- Pour TÉLÉCHARGER une image ou un fichier depuis une URL : utilise \"download_file\" avec\n  { \"action\": \"download_file\", \"url\": \"https://...\", \"path\": \"docs/mon_image.png\" }.\n- Pour CRÉER un PDF structuré : utilise \"generate_pdf\" avec \"title\" et \"sections\"\n  (chaque section a \"heading\", \"text\" et éventuellement \"images\" = liste de chemins locaux).\n\nRÈGLES STRICTES :\n- Pas de triple backticks autour.\n- Pas de mot \"json\" avant.\n- Le PREMIER caractère de ta réponse doit être {.\n- Le DERNIER caractère de ta réponse doit être }.\n- Aucune explication avant ou après le JSON.`
+      `# MODE DEV (A-11 DEVELOPER ENGINE)
+- Tu te comportes comme un ingénieur logiciel dans un vrai workspace local.
+- Tu peux proposer des actions JSON (mode "actions") pour Cerbère (write_file, generate_pdf, etc.).
+- Tu évites les actions destructrices.
+- Tu ne t'inventes pas de problème : si tu n'as pas assez de contexte, tu demandes des fichiers / erreurs.
+
+- Quand l'utilisateur demande un PDF explicatif (cours, fiche, dossier, etc.),
+  tu dois créer AU MOINS 4 sections détaillées, avec plusieurs paragraphes.
+- Utilise de préférence la structure :
+  sections = [
+    { "heading": "Introduction", "text": "...", "images": [...] },
+    { "heading": "Partie 1 : ...", "text": "...", "images": [...] },
+    { "heading": "Partie 2 : ...", "text": "...", "images": [...] },
+    { "heading": "Conclusion", "text": "..." }
+  ]
+- Pour inclure une image dans le PDF, elle doit déjà être présente sur le disque.
+  D'abord tu utilises l'action "download_file" pour télécharger l'image dans "docs/...",
+  ensuite tu passes ce chemin dans "sections[].images".
+
+EN MODE DEV (fichiers / workspace) :
+- Si l'utilisateur demande de CRÉER, LIRE, MODIFIER un fichier, un PDF, une image, etc.,
+  TU NE RÉPONDS PAS en texte.
+- Tu renvoies UNIQUEMENT un JSON valide de la forme :
+
+{ "mode": "actions", "actions": [ { "action": "write_file", "path": "docs/test.txt", "content": "Contenu du fichier..." } ] }
+
+- Pour CRÉER / MODIFIER un fichier texte : utilise "write_file" (champ "content" en texte).
+- Pour TÉLÉCHARGER une image ou un fichier depuis une URL : utilise "download_file" avec
+  { "action": "download_file", "url": "https://...", "path": "docs/mon_image.png" }.
+- Pour CRÉER un PDF structuré : utilise "generate_pdf" avec "title" et "sections"
+  (chaque section a "heading", "text" et éventuellement "images" = liste de chemins locaux).
+
+RÈGLES STRICTES :
+- Pas de triple backticks autour.
+- Pas de mot "json" avant.
+- Le PREMIER caractère de ta réponse doit être {.
+- Le DERNIER caractère de ta réponse doit être }.
+- Aucune explication avant ou après le JSON.`
     );
     return parts.join("\n\n---\n\n");
   }, [nindoLayers]);
@@ -415,9 +519,7 @@ export function App() {
 
   // Initialisation globale de window.speak au montage pour garantir le son
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      (window as any).speak = speak;
-    }
+    (globalThis as any).speak = speak;
   }, [devMode, stats]);
 
   // Chargement de l'historique backend au montage
@@ -431,7 +533,8 @@ export function App() {
     try {
       const list = await fetchA11HistoryList();
       setA11History(list);
-    } catch (e) {
+    } catch (error_) {
+      console.warn('[A11] failed to refresh history', error_);
       setA11History([]);
     } finally {
       setLoadingHistory(false);
@@ -446,7 +549,8 @@ export function App() {
     try {
       const conv = await fetchA11Conversation(convId);
       setA11ConvMsgs(conv.messages || []);
-    } catch (e) {
+    } catch (error_) {
+      console.warn('[A11] failed to open conversation', error_);
       setA11ConvMsgs([]);
     } finally {
       setLoadingHistory(false);
@@ -454,6 +558,12 @@ export function App() {
   }
 
   // HEADER avec bouton Mode DEV centré, select modèle à droite, mute à l'extrême droite
+  
+  // ✅ Check authentication
+  if (!isAuthenticated) {
+    return <LoginPanel onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <div className="app-container" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header
@@ -532,7 +642,7 @@ export function App() {
                 marginRight: 6,
               }}
             />
-            Mode DEV
+            <span>Mode DEV</span>
           </button>
         </div>
         {/* Select modèle + MuteButton + badge backend */}
@@ -580,6 +690,27 @@ export function App() {
             </div>
           )}
         </div>
+        <MuteButton />
+        {/* ✅ LOGOUT BUTTON */}
+        <button
+          onClick={() => {
+            logout();
+            setIsAuthenticated(false);
+          }}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "4px",
+            border: "1px solid #dc2626",
+            background: "transparent",
+            color: "#fca5a5",
+            cursor: "pointer",
+            fontWeight: "bold",
+            fontSize: "13px"
+          }}
+          title="Logout"
+        >
+          🚪 Logout
+        </button>
       </header>
       {/* Grille principale : sidebar + main */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -595,16 +726,9 @@ export function App() {
               {chats.map(chat => (
                 <div
                   key={chat.id}
-                  onClick={() => {
-                    setSelectedChatId(chat.id);
-                    setMessages(chat.messages);
-                    setA11ConvId(null);
-                    setA11ConvMsgs([]);
-                  }}
                   style={{
                     fontWeight: chat.id === selectedChatId ? "bold" : "normal",
                     background: chat.id === selectedChatId ? "#22293a" : "transparent",
-                    cursor: "pointer",
                     padding: '6px 16px',
                     display: 'flex',
                     alignItems: 'center',
@@ -613,7 +737,19 @@ export function App() {
                     margin: '2px 8px',
                   }}
                 >
-                  <span>{chat.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedChatId(chat.id);
+                      setMessages(chat.messages);
+                      setA11ConvId(null);
+                      setA11ConvMsgs([]);
+                    }}
+                    className="btn ghost"
+                    style={{ flex: 1, padding: 0, border: 'none', background: 'transparent', textAlign: 'left', justifyContent: 'flex-start' }}
+                  >
+                    {chat.name}
+                  </button>
                   <span style={{ display: 'flex', gap: 4 }}>
                     <button onClick={e => { e.stopPropagation(); renameChat(chat.id); }} title="Renommer" className="btn ghost" style={{ fontSize: 13 }}>✏️</button>
                     <button onClick={e => { e.stopPropagation(); deleteChat(chat.id); }} title="Supprimer" className="btn ghost" style={{ fontSize: 13 }}>🗑️</button>
@@ -647,40 +783,39 @@ export function App() {
         <main className="main" style={{ flex: 1, minWidth: 0 }}>
           <div className="scroll-frame">
             <div className="log">
-              {(a11ConvMsgs.length ? a11ConvMsgs : messages).map((m, idx) => (
-                <div
-                  key={m.id || idx}
-                  className={
-                    "message " +
-                    (m.role === "user"
-                      ? "user"
-                      : m.role === "assistant"
-                      ? "assistant"
-                      : "")
-                  }
-                >
-                  <div className="role">
-                    {m.role === "user"
-                      ? "Toi"
-                      : m.role === "assistant"
-                      ? "A-11"
-                      : "Système / Nindo"}
+              {(a11ConvMsgs.length ? a11ConvMsgs : messages).map((m, idx) => {
+                let messageClassName = "message ";
+                let roleLabel = "Système / Nindo";
+                if (m.role === "user") {
+                  messageClassName = "message user";
+                  roleLabel = "Toi";
+                } else if (m.role === "assistant") {
+                  messageClassName = "message assistant";
+                  roleLabel = "A-11";
+                }
+                const contentNode = m.role === "assistant"
+                  ? <ReactMarkdown>{m.content}</ReactMarkdown>
+                  : <div>{m.content}</div>;
+
+                return (
+                  <div
+                    key={m.id || idx}
+                    className={messageClassName}
+                  >
+                    <div className="role">{roleLabel}</div>
+                    {contentNode}
+                    {m.imageUrl && (
+                      <div className="msg-image">
+                        <img
+                          src={m.imageUrl}
+                          alt="Résultat A-11"
+                          style={{ maxWidth: "320px", borderRadius: 12 }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {m.role === "assistant"
-                    ? <ReactMarkdown>{m.content}</ReactMarkdown>
-                    : <div>{m.content}</div>
-                  }
-                  {m.imageUrl && (
-                    <div className="msg-image">
-                      <img
-                        src={m.imageUrl}
-                        alt="Résultat A-11"
-                        style={{ maxWidth: "320px", borderRadius: 12 }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
