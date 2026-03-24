@@ -8,8 +8,8 @@ const child_process = require("node:child_process");
 // -------------------------------------------
 // DEV_MODE doit être défini avant toute utilisation
 // -------------------------------------------
-const DEV_MODE = true;
-console.log("[Cerbère] !!! DEV MODE FORCÉ À TRUE !!!");
+const DEV_MODE = String(process.env.DEV_MODE || "").toLowerCase() === "true";
+console.log(`[Cerbère] DEV_MODE=${DEV_MODE ? "true" : "false"}`);
 
 // Ollama backend config (env or default)
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "127.0.0.1";
@@ -632,6 +632,9 @@ router.post("/v1/chat/completions", async (req, res) => {
         return res.status(upstreamRes.status).json({ error: "upstream_error", status: upstreamRes.status, detail: errText });
       }
       const data = await upstreamRes.json();
+      if (typeof data?.choices?.[0]?.message?.content === "string") {
+        data.choices[0].message.content = sanitizeAssistantText(data.choices[0].message.content);
+      }
       return res.json(data);
     }
 
@@ -723,13 +726,20 @@ ${userPrompt}
       break;
     }
 
-    const finalSummary =
-      (await buildDevSummaryWithLLM({
-        upstreamUrl: backendUrl,
-        model,
-        userPrompt,
-        actionResults: toolResults,
-      })) || summarizeActionsFallback(toolResults);
+    const directAnswer = sanitizeAssistantText(
+      lastRaw || lastData?.choices?.[0]?.message?.content || ""
+    );
+
+    const finalSummary = sanitizeAssistantText(
+      toolResults.length === 0
+        ? directAnswer
+        : (await buildDevSummaryWithLLM({
+            upstreamUrl: backendUrl,
+            model,
+            userPrompt,
+            actionResults: toolResults,
+          })) || summarizeActionsFallback(toolResults)
+    );
 
     return res.json({
       ...lastData,
@@ -929,6 +939,45 @@ function parseEnvelope(raw) {
     logWarn(`[Cerbère] parseEnvelope JSON error (slice): ${e.message}`);
     return null;
   }
+}
+
+function normalizeTextForCompare(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dedupeConsecutiveLines(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const out = [];
+  let prevNorm = "";
+  for (const line of lines) {
+    const norm = normalizeTextForCompare(line);
+    if (norm && norm === prevNorm) continue;
+    out.push(line);
+    prevNorm = norm;
+  }
+  return out.join("\n");
+}
+
+function dedupeConsecutiveSentences(text) {
+  const sentences = String(text || "").match(/[^.!?\n]+[.!?]?/g) || [String(text || "")];
+  const out = [];
+  let prevNorm = "";
+  for (const sentence of sentences) {
+    const norm = normalizeTextForCompare(sentence);
+    if (norm && norm === prevNorm) continue;
+    out.push(sentence);
+    prevNorm = norm;
+  }
+  return out.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function sanitizeAssistantText(text) {
+  const step1 = dedupeConsecutiveLines(text);
+  const step2 = dedupeConsecutiveSentences(step1);
+  return step2 || String(text || "").trim();
 }
 
 async function buildDevSummaryWithLLM({ upstreamUrl, model, userPrompt, actionResults, imageUrl }) {

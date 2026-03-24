@@ -13,6 +13,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.LLM_ROUTER_PORT || process.env.PORT || 4545;
+const DEV_MODE = String(process.env.DEV_MODE || '').toLowerCase() === 'true';
 
 // Backend configuration
 const QFLUSH_BASE = process.env.QFLUSH_URL || process.env.QFLUSH_REMOTE_URL || null;
@@ -24,7 +25,7 @@ const BACKENDS = {
   openai: process.env.OPENAI_API_URL || null
 };
 
-console.log('[Cerbère] DEV ENGINE initialized');
+console.log(`[Cerbère] DEV ENGINE initialized (DEV_MODE=${DEV_MODE ? 'true' : 'false'})`);
 console.log('[Cerbère] Available backends:', BACKENDS);
 
 // Backend selection based on model
@@ -323,14 +324,16 @@ app.post("/v1/chat/completions", async (req, res) => {
     mode: req.headers["x-dev-mode"] || body.dev_context?.mode || "DEV_ENGINE",
   };
 
-  const isDeveloperMode =
-    devContext.files ||
-    devContext.errors ||
+  const explicitDevRequest =
+    body.dev_engine === true ||
+    String(devContext.mode || '').toUpperCase() === 'DEV_ENGINE' ||
     messages.some(
       (m) =>
         typeof m.content === "string" &&
         (m.content.includes("[DEV_ENGINE]") || m.content.includes("[NOSSEN]"))
     );
+
+  const isDeveloperMode = DEV_MODE && explicitDevRequest;
 
   let enhancedMessages = [...messages];
 
@@ -455,7 +458,7 @@ app.get(['/api/stats', '/api/llm/stats'], (req, res) => {
   res.json({
     service: 'cerbere-dev-engine',
     version: '2.0.0',
-    mode: 'developer',
+    mode: DEV_MODE ? 'developer' : 'production',
     backends: BACKENDS,
     features: [
       'dev_engine',
