@@ -9,15 +9,13 @@ echo "[A11] Booting server..."
 PIPER_PID=""
 
 if [ "${ENABLE_PIPER_HTTP:-false}" = "true" ]; then
-	if [ -n "${PIPER_START_CMD:-}" ]; then
-		PIPER_START_CMD="${PIPER_START_CMD}"
-	elif command -v piper >/dev/null 2>&1; then
-		PIPER_START_CMD="piper --model ${TTS_MODEL_PATH:-/app/apps/server/tts/fr_FR-siwis-medium.onnx} --port ${TTS_PORT:-5002}"
-	else
-		PIPER_START_CMD="python3 -m piper --model ${TTS_MODEL_PATH:-/app/apps/server/tts/fr_FR-siwis-medium.onnx} --port ${TTS_PORT:-5002}"
-	fi
-	echo "[A11] Starting Piper with: ${PIPER_START_CMD}"
-	bash -lc "${PIPER_START_CMD}" &
+	export TTS_OUT_DIR="${TTS_OUT_DIR:-/app/public/tts}"
+	export PIPER_HTTP_PORT="${TTS_PORT:-5002}"
+	mkdir -p "${TTS_OUT_DIR}"
+	echo "[A11] Starting Piper HTTP server (serve.py) on port ${PIPER_HTTP_PORT}"
+	echo "[A11]   Model  : ${TTS_MODEL_PATH:-/app/apps/server/tts/fr_FR-siwis-medium.onnx}"
+	echo "[A11]   OutDir : ${TTS_OUT_DIR}"
+	python3 /app/apps/server/tts/serve.py &
 	PIPER_PID=$!
 	echo "[A11] Piper PID: ${PIPER_PID}"
 else
