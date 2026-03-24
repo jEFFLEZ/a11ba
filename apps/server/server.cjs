@@ -97,6 +97,7 @@ const multer = require('multer');
 const open = require('open');
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
+const jwt = require('jsonwebtoken');
 const { nezAuth, getNezAccessLog, TOKENS, MODE, registerIssuedToken } = require('./src/middleware/nezAuth');
 
 const BASE = path.resolve(__dirname);
@@ -373,13 +374,51 @@ try {
 }
 
 // ✅ LOGIN ROUTE (public, no auth required)
+// ✅ JWT configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const JWT_EXPIRY = '24h';
+
+// ✅ JWT verification middleware
+function verifyJWT(req, res, next) {
+  const token = req.headers['x-nez-token'] || req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    console.warn('[JWT] No token provided');
+    return res.status(401).json({
+      error: 'A11_JWT_Missing',
+      message: 'JWT token manquant'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    console.log('[JWT] ✅ Token vérifié pour user:', decoded.username);
+    next();
+  } catch (err) {
+    console.warn('[JWT] Verification failed:', err.message);
+    return res.status(401).json({
+      error: 'A11_JWT_Invalid',
+      message: `JWT invalide ou expiré: ${err.message}`
+    });
+  }
+}
+
+// ✅ LOGIN ROUTE - renvoie un JWT signé
 app.post('/api/auth/login', express.json(), (req, res) => {
   const { username, password } = req.body || {};
   
-  // ⚠️ TEMP: hardcoded credentials
+  console.log('[AUTH] Login attempt:', username);
+  
+  // ⚠️ TEMP: hardcoded credentials (à remplacer par une vraie DB)
   if (username === 'admin' && password === '1234') {
-    const token = `nez-${username}-${Date.now()}`;
-    registerIssuedToken(token);
+    const token = jwt.sign(
+      { username, id: 'admin' },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    
+    console.log('[AUTH] ✅ Login réussi pour admin, JWT signé');
     return res.json({
       success: true,
       token,
@@ -387,6 +426,7 @@ app.post('/api/auth/login', express.json(), (req, res) => {
     });
   }
   
+  console.log('[AUTH] ❌ Credentials invalides');
   res.status(401).json({
     success: false,
     error: 'Invalid credentials'
@@ -395,7 +435,7 @@ app.post('/api/auth/login', express.json(), (req, res) => {
 
 // ✅ AUTH MIDDLEWARE - appliqué SEULEMENT sur /api/ai pour protéger chat
 // /api/auth/login reste public!
-app.use('/api/ai', nezAuth);
+app.use('/api/ai', verifyJWT);
 
 // ✅ PROTECTED CHAT ROUTE — /api/ai/chat (auth required via middleware)
 // Centralized proxy with user context.
