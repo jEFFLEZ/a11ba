@@ -16,6 +16,12 @@ const MODE = (process.env.NEZ_SECURITY_MODE || 'dev').toLowerCase();
 
 const nezAccessLog = [];
 
+// In-memory store for tokens issued by /api/auth/login
+const issuedTokens = new Set();
+function registerIssuedToken(token) {
+  issuedTokens.add(token);
+}
+
 function isLocalRequest(req) {
   try {
     const host = (req.hostname || '').toLowerCase();
@@ -73,6 +79,22 @@ function nezAuth(req, res, next) {
     });
   }
 
+  // Accept tokens issued by /api/auth/login (in-memory)
+  if (issuedTokens.has(headerToken)) {
+    req.nezClient = { id: 'session', token: headerToken, source: 'login' };
+    return next();
+  }
+
+  // Accept tokens issued by /api/auth/login (in-memory)
+  if (issuedTokens.has(headerToken)) {
+    req.nezClient = { id: 'session', token: headerToken, source: 'login' };
+    try {
+      nezAccessLog.push({ when: new Date(), clientId: 'session', path: req.path, ip: req.ip });
+      if (nezAccessLog.length > 500) nezAccessLog.shift();
+    } catch (e) {}
+    return next();
+  }
+
   let matchedId = null;
   for (const [id, token] of Object.entries(TOKENS)) {
     if (token === headerToken) {
@@ -108,4 +130,4 @@ function getNezAccessLog() {
   return nezAccessLog.slice().reverse();
 }
 
-module.exports = { nezAuth, parseNezTokens, TOKENS, MODE, getNezAccessLog };
+module.exports = { nezAuth, parseNezTokens, TOKENS, MODE, getNezAccessLog, registerIssuedToken };

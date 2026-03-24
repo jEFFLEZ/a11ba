@@ -97,7 +97,7 @@ const multer = require('multer');
 const open = require('open');
 const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
-const { nezAuth, getNezAccessLog, TOKENS, MODE } = require('./src/middleware/nezAuth');
+const { nezAuth, getNezAccessLog, TOKENS, MODE, registerIssuedToken } = require('./src/middleware/nezAuth');
 
 const BASE = path.resolve(__dirname);
 const LLAMA_DIR = path.join(BASE, 'llama.cpp');
@@ -369,6 +369,7 @@ app.post('/api/auth/login', express.json(), (req, res) => {
   // ⚠️ TEMP: hardcoded credentials
   if (username === 'admin' && password === '1234') {
     const token = `nez-${username}-${Date.now()}`;
+    registerIssuedToken(token);
     return res.json({
       success: true,
       token,
