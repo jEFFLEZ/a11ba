@@ -348,6 +348,22 @@ async function callPiperHttp(text, model) {
   throw new Error('piper_unreachable: ' + String(lastError?.message || lastError || 'unknown_error'));
 }
 
+function resolveEspeakData() {
+  const fromEnv = String(process.env.ESPEAK_DATA_PATH || '').trim();
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+
+  // piper-tts pip package bundles espeak-ng-data inside piper_phonemize
+  const pythonVersions = ['python3.11', 'python3.12', 'python3.10', 'python3'];
+  const venvRoots = ['/opt/venv', '/usr/local', '/usr'];
+  for (const root of venvRoots) {
+    for (const pyver of pythonVersions) {
+      const candidate = path.join(root, 'lib', pyver, 'site-packages', 'piper_phonemize', 'espeak-ng-data');
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
 function spawnPiperLocal(text, model) {
   return new Promise((resolve, reject) => {
     try {
@@ -373,9 +389,12 @@ function spawnPiperLocal(text, model) {
       const outFileName = `tts-out-${ts}.wav`;
       const outFile = path.join(ttsDir, outFileName);
 
+      // Resolve espeak-ng-data directory (piper-tts pip bundles it inside piper_phonemize)
+      const espeak = resolveEspeakData();
       const args = [
         '--model', modelPath,
-        '--output_file', outFile
+        '--output_file', outFile,
+        ...(espeak ? ['--espeak_data', espeak] : []),
       ];
 
       let stderr = '';
@@ -462,6 +481,20 @@ router.get('/tts/health', async (req, res) => {
       piperCommand: spawn.piperCommand,
       modelPath: spawn.modelPath,
       modelJsonPath: spawn.modelJsonPath,
+      if (spawn.ready) {
+        return res.json({
+          ok: true,
+          mode: 'spawn-ready',
+          warning: httpWarning,
+          host,
+          port,
+          requestedModel: spawn.requestedModel,
+          piperCommand: spawn.piperCommand,
+          modelPath: spawn.modelPath,
+          modelJsonPath: spawn.modelJsonPath,
+          espeakData: resolveEspeakData(),
+        });
+      }
     });
   }
 
