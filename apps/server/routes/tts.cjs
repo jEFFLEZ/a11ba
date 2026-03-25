@@ -481,20 +481,7 @@ router.get('/tts/health', async (req, res) => {
       piperCommand: spawn.piperCommand,
       modelPath: spawn.modelPath,
       modelJsonPath: spawn.modelJsonPath,
-      if (spawn.ready) {
-        return res.json({
-          ok: true,
-          mode: 'spawn-ready',
-          warning: httpWarning,
-          host,
-          port,
-          requestedModel: spawn.requestedModel,
-          piperCommand: spawn.piperCommand,
-          modelPath: spawn.modelPath,
-          modelJsonPath: spawn.modelJsonPath,
-          espeakData: resolveEspeakData(),
-        });
-      }
+      espeakData: resolveEspeakData(),
     });
   }
 
