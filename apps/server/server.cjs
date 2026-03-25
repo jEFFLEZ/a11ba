@@ -2021,11 +2021,100 @@ function buildPromptFromMessages(messages) {
 }
 
 function extractLocalCompletionContent(payload) {
+  const normalize = (value) => normalizeAssistantOutput(value);
   if (!payload || typeof payload !== 'object') return '';
-  if (typeof payload.content === 'string') return payload.content;
-  if (typeof payload.response === 'string') return payload.response;
-  if (Array.isArray(payload.choices) && payload.choices[0]?.text) return String(payload.choices[0].text);
+  if (typeof payload.content === 'string') return normalize(payload.content);
+  if (typeof payload.response === 'string') return normalize(payload.response);
+  if (Array.isArray(payload.choices) && payload.choices[0]?.text) return normalize(String(payload.choices[0].text));
   return '';
+}
+
+function normalizeAssistantOutput(value) {
+  let text = String(value || '').trim();
+  if (!text) return '';
+
+  // Remove leading role prefixes repeatedly (assistant:, a-11:, bot:, etc.).
+  for (let index = 0; index < 4; index += 1) {
+    const next = text.replace(/^(assistant|a-11|bot)\s*:\s*/i, '').trim();
+    if (next === text) break;
+    text = next;
+  }
+
+  // Keep only the first assistant segment and drop leaked synthetic turns.
+  const lower = text.toLowerCase();
+  const separators = ['\nuser:', '\nassistant:', '\nsystem:', '\ntoi', '\na-11'];
+  let cutAt = -1;
+  for (const separator of separators) {
+    const position = lower.indexOf(separator);
+    if (position > 0 && (cutAt === -1 || position < cutAt)) {
+      cutAt = position;
+    }
+  }
+  if (cutAt > 0) {
+    text = text.slice(0, cutAt).trim();
+  }
+
+  return text;
+}
+
+function isSiwisStatusQuestion(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return false;
+  const mentionsSiwis = /siwis|piper|tts|voix/.test(text);
+  const asksStatus = /marche|fonctionne|disponible|status|etat|up|down|ok/.test(text);
+  return mentionsSiwis && asksStatus;
+}
+
+async function getSiwisHealthSnapshot() {
+  const port = Number(process.env.PORT || 3000);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const response = await fetch(`${baseUrl}/api/tts/health`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(3000),
+  });
+  const raw = await response.text();
+  let body = null;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = { raw: String(raw).slice(0, 400) };
+  }
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+  };
+}
+
+function formatSiwisStatusReply(snapshot) {
+  if (snapshot?.ok && snapshot?.body?.ok) {
+    const mode = String(snapshot.body.mode || 'unknown');
+    const modelPath = String(snapshot.body.modelPath || '').trim();
+    const modelLabel = modelPath ? ` (${modelPath.split('/').pop()})` : '';
+    return `Oui, SIWIS fonctionne actuellement. Mode: ${mode}${modelLabel}.`;
+  }
+
+  const errorCode = String(snapshot?.body?.error || `http_${snapshot?.status || 'unknown'}`);
+  return `Non, SIWIS est indisponible actuellement (raison: ${errorCode}).`;
+}
+
+function toSimpleAssistantCompletion(content, model = 'a11-runtime') {
+  return {
+    id: `chatcmpl-runtime-${Date.now()}`,
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: 'assistant',
+          content,
+        },
+        finish_reason: 'stop',
+      },
+    ],
+  };
 }
 
 function getCompletionsUrlForRequest(body) {
@@ -2071,20 +2160,20 @@ function shouldUseQflushChat(body) {
 
 function extractAssistantText(payload) {
   if (!payload) return '';
-  if (typeof payload === 'string') return payload;
-  if (typeof payload.output === 'string') return payload.output;
-  if (typeof payload.response === 'string') return payload.response;
-  if (typeof payload.content === 'string') return payload.content;
-  if (typeof payload.text === 'string') return payload.text;
+  if (typeof payload === 'string') return normalizeAssistantOutput(payload);
+  if (typeof payload.output === 'string') return normalizeAssistantOutput(payload.output);
+  if (typeof payload.response === 'string') return normalizeAssistantOutput(payload.response);
+  if (typeof payload.content === 'string') return normalizeAssistantOutput(payload.content);
+  if (typeof payload.text === 'string') return normalizeAssistantOutput(payload.text);
   if (payload.result && typeof payload.result === 'object') {
     return extractAssistantText(payload.result);
   }
   if (Array.isArray(payload.messages)) {
     const assistantMsg = [...payload.messages].reverse().find((msg) => msg?.role === 'assistant' && typeof msg.content === 'string');
-    if (assistantMsg) return assistantMsg.content;
+    if (assistantMsg) return normalizeAssistantOutput(assistantMsg.content);
   }
   if (Array.isArray(payload.choices) && payload.choices[0]?.message?.content) {
-    return String(payload.choices[0].message.content);
+    return normalizeAssistantOutput(String(payload.choices[0].message.content));
   }
   return '';
 }
@@ -2452,6 +2541,21 @@ async function proxyLocalLlamaCompletion(req, res, localLlamaCompletionUrl) {
 
 async function proxyChatToOpenAI(req, res) {
   const provider = String(req.body?.provider || '').trim().toLowerCase();
+  const latestUserMessage = getLatestUserMessage(req.body || {});
+
+  if (isSiwisStatusQuestion(latestUserMessage)) {
+    try {
+      const snapshot = await getSiwisHealthSnapshot();
+      const reply = formatSiwisStatusReply(snapshot);
+      const data = toSimpleAssistantCompletion(reply, 'a11-runtime-tts-health');
+      appendChatTurnLogSafe(req.body, data, 'a11-runtime-tts-health');
+      return res.status(200).json(data);
+    } catch {
+      const fallback = toSimpleAssistantCompletion('Je ne peux pas verifier SIWIS pour le moment (health timeout).');
+      appendChatTurnLogSafe(req.body, fallback, 'a11-runtime-tts-health');
+      return res.status(200).json(fallback);
+    }
+  }
 
   if (shouldUseQflushChat(req.body)) {
     return proxyQflushChat(req, res);
