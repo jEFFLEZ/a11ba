@@ -92,15 +92,29 @@ function resolvePiperModel(requestedModel) {
   const explicitModelPath = String(process.env.TTS_MODEL_PATH || process.env.PIPER_MODEL_PATH || '').trim();
   const modelsDirEnv = String(process.env.TTS_MODELS_DIR || process.env.PIPER_MODELS_DIR || '').trim();
 
+  function addModelCandidate(target, value) {
+    const raw = String(value || '').trim();
+    if (!raw) return;
+    if (!target.includes(raw)) target.push(raw);
+    if (!raw.toLowerCase().endsWith('.onnx')) {
+      const withExt = `${raw}.onnx`;
+      if (!target.includes(withExt)) target.push(withExt);
+    }
+  }
+
   const modelCandidates = [];
-  if (requestedModel) modelCandidates.push(String(requestedModel).trim());
-  if (explicitModelPath) modelCandidates.push(explicitModelPath);
-  modelCandidates.push('fr_FR-medium.onnx', 'fr_FR-siwis-medium.onnx');
+  addModelCandidate(modelCandidates, requestedModel);
+  addModelCandidate(modelCandidates, explicitModelPath);
+  // Prefer SIWIS when no explicit model is requested.
+  addModelCandidate(modelCandidates, 'fr_FR-siwis-medium');
+  addModelCandidate(modelCandidates, 'fr_FR-medium');
 
   const baseDirs = [
     modelsDirEnv,
+    path.join(workspaceRoot, 'apps', 'server', 'tts'),
     path.join(workspaceRoot, 'piper', 'models'),
     path.join(workspaceRoot, 'tts'),
+    '/app/apps/server/tts',
     '/app/tts',
     '/data/tts'
   ].filter(Boolean);
