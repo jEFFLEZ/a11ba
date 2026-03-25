@@ -8,7 +8,21 @@ let isProcessingQueue = false;
 let speechMuted = false;
 
 const API_BASE = (import.meta as any)?.env?.VITE_API_BASE_URL || (import.meta as any)?.env?.VITE_API_URL || '';
-const TTS_ENDPOINT = (import.meta as any)?.env?.VITE_TTS_API || (API_BASE ? `${String(API_BASE).replace(/\/$/, '')}/api/tts/piper` : '/api/tts/piper');
+
+function buildApiUrl(path: string): string {
+  const base = String(API_BASE || '').replace(/\/$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (!base) return normalizedPath;
+  if (base.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${base}${normalizedPath.slice(4)}`;
+  }
+  if (base === '/api' && normalizedPath === '/api') {
+    return base;
+  }
+  return `${base}${normalizedPath}`;
+}
+
+const TTS_ENDPOINT = (import.meta as any)?.env?.VITE_TTS_API || buildApiUrl('/api/tts/piper');
 
 // Mode: true = queue TTS (mode vocal/mic), false = pas de queue (mode normal)
 export let ttsQueueEnabled = false;

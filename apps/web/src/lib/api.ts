@@ -21,6 +21,7 @@ const LLM_ROUTER_URL = (import.meta.env?.VITE_LLM_ROUTER_URL) || 'http://127.0.0
 
 // Nezlephant token (optionnel)
 const NEZ_TOKEN = (import.meta.env?.VITE_A11_NEZ_TOKEN) || '';
+const ADMIN_TOKEN = (import.meta.env?.VITE_A11_ADMIN_TOKEN) || '';
 
 // ✅ AUTH HELPERS
 export function getAuthToken() {
@@ -101,8 +102,8 @@ function dispatchBrowserEvent(event: Event) {
 }
 
 export const TTS_API =
-    import.meta.env.VITE_TTS_API ||
-    (API_BASE ? `${API_BASE}/api/tts/piper` : '/api/tts/piper');
+  import.meta.env.VITE_TTS_API ||
+  getApiUrl('/api/tts/piper');
 
 export const TTS_VOICES = ['fr_FR-siwis-medium'];
 
@@ -330,7 +331,7 @@ export async function chatCompletion(
 // Chat simple avec prompt système et modèle choisis
 export async function chat(message: string, history: Msg[] = [], provider: Provider = 'local', systemPrompt?: string) {
   const messages: Msg[] = history.length ? history : [
-    { role: 'system', content: systemPrompt || 'Tu es AlphaOnze (A-11), un assistant IA français unique et attachant.' },
+    { role: 'system', content: systemPrompt || "Tu es A-11, assistant local. Reponds court, clair et direct. N'invente pas de contexte. Ne propose pas d'action non demandee. Si la question est triviale, reponds en une phrase maximum." },
     { role: 'user', content: message }
   ];
   dispatchBrowserEvent(new Event('conversation:start'));
@@ -446,4 +447,54 @@ export async function fetchA11Conversation(convId: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Erreur chargement conversation A-11');
   return res.json();
+}
+
+type MemoryCounts = {
+  facts: number;
+  tasks: number;
+  files: number;
+};
+
+export type MemoryPurgeNowResponse = {
+  ok: boolean;
+  userId: string;
+  dryRun?: boolean;
+  purgeTriggeredAt: string;
+  before: MemoryCounts;
+  after: MemoryCounts;
+  removed: MemoryCounts;
+  wouldRemove?: MemoryCounts | null;
+};
+
+export async function purgeMemoryNow(options?: { userId?: string; dryRun?: boolean }): Promise<MemoryPurgeNowResponse> {
+  const dryRun = !!options?.dryRun;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const token = getAuthToken();
+  if (token) headers['X-NEZ-TOKEN'] = token;
+  else if (NEZ_TOKEN) headers['X-NEZ-TOKEN'] = NEZ_TOKEN;
+
+  if (ADMIN_TOKEN) headers['X-NEZ-ADMIN'] = ADMIN_TOKEN;
+
+  const purgePath = dryRun ? '/api/memory/purge-now?dryRun=1' : '/api/memory/purge-now';
+  const res = await fetch(getApiUrl(purgePath), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(options?.userId ? { userId: options.userId } : {}),
+  });
+
+  let data: any = {};
+  try {
+    data = await res.json();
+  } catch {
+    // ignore parse errors and use fallback error below
+  }
+
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.message || data?.error || `Memory purge failed (${res.status})`);
+  }
+
+  return data as MemoryPurgeNowResponse;
 }
