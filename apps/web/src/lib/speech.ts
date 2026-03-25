@@ -23,6 +23,26 @@ export function isSpeechMuted() { return speechMuted; }
 
 let currentAudio: HTMLAudioElement | null = null;
 
+// Unlock audio context on first user interaction (required by autoplay policy)
+let _audioUnlocked = false;
+function ensureAudioUnlocked() {
+  if (_audioUnlocked) return;
+  const unlock = () => {
+    if (_audioUnlocked) return;
+    _audioUnlocked = true;
+    // Play a silent audio to unlock the audio context
+    const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+    silent.play().catch(() => {});
+    document.removeEventListener('click', unlock, true);
+    document.removeEventListener('keydown', unlock, true);
+    document.removeEventListener('touchstart', unlock, true);
+  };
+  document.addEventListener('click', unlock, { once: true, capture: true });
+  document.addEventListener('keydown', unlock, { once: true, capture: true });
+  document.addEventListener('touchstart', unlock, { once: true, capture: true });
+}
+if (typeof document !== 'undefined') ensureAudioUnlocked();
+
 function emitEvent(name: string) {
   const dispatcher = (globalThis as any)?.dispatchEvent;
   if (typeof dispatcher === 'function') {
@@ -172,8 +192,9 @@ async function fetchAndPlayPiperTTS(text: string, options: any = {}, onEnd?: () 
     });
     if (!res.ok) throw new Error('Piper TTS server error');
     const data = await res.json();
-    if (!data.audio_url) throw new Error('No audio_url in Piper response');
-    const audio = new Audio(resolveAudioUrl(data.audio_url));
+    const audioUrl = data.audioUrl ?? data.audio_url ?? null;
+    if (!audioUrl) throw new Error('No audio_url in Piper response');
+    const audio = new Audio(resolveAudioUrl(audioUrl));
     currentAudio = audio;
     audio.onended = () => {
       emitEvent('a11:speechend');
