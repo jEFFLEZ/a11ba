@@ -429,6 +429,24 @@ router.get('/tts/health', async (req, res) => {
     });
   }
 
+  if (!spawn.piperCommand) {
+    return res.status(503).json({
+      ok: false,
+      error: 'piper_binary_missing',
+      requestedModel: spawn.requestedModel,
+      message: 'No piper executable found (set PIPER_BIN or install piper in PATH).',
+    });
+  }
+
+  if (!spawn.modelPath) {
+    return res.status(503).json({
+      ok: false,
+      error: 'model_missing',
+      requestedModel: spawn.requestedModel,
+      message: 'No model file found (set TTS_MODEL_PATH or TTS_MODELS_DIR).',
+    });
+  }
+
   if (lastHttpStatus) {
     return res.status(502).json({ ok: false, error: 'piper_unhealthy', statusCode: lastHttpStatus, body: String(lastBody).slice(0, 300), host, port });
   }
