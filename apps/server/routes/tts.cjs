@@ -6,6 +6,12 @@ const router = express.Router();
 
 const commandAvailabilityCache = new Map();
 
+function envBool(name, fallback = false) {
+  const raw = String(process.env[name] || '').trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
 function isCommandAvailable(command) {
   const key = String(command || '').trim();
   if (!key) return false;
@@ -141,10 +147,14 @@ function resolvePiperModel(requestedModel) {
 function getSpawnReadiness(requestedModel) {
   const piper = resolvePiperBinary();
   const modelPath = resolvePiperModel(requestedModel);
+  const modelJsonPath = modelPath ? `${modelPath}.json` : null;
+  const modelJsonExists = Boolean(modelJsonPath && fs.existsSync(modelJsonPath));
   return {
-    ready: Boolean(piper && modelPath),
+    ready: Boolean(piper && modelPath && modelJsonExists),
     piperCommand: piper?.command || null,
     modelPath: modelPath || null,
+    modelJsonPath,
+    modelJsonExists,
   };
 }
 
@@ -311,25 +321,28 @@ function spawnPiperLocal(text, model) {
 // GET /api/tts/health -> probe local Piper service (try multiple endpoints)
 router.get('/tts/health', async (req, res) => {
   const { host, port, baseUrl } = getLocalTtsConfig();
+  const preferHttpTts = envBool('ENABLE_PIPER_HTTP', false);
   const candidates = ['/health', '/api/tts', '/', '/synthesize', '/tts'];
   let lastHttpStatus = null;
   let lastBody = '';
   let lastError = null;
 
-  for (const p of candidates) {
-    try {
-      const response = await fetch(`${baseUrl}${p}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      const raw = await response.text();
-      if (response.ok) {
-        return res.json({ ok: true, statusCode: response.status, path: p, body: parseJsonMaybe(raw) });
+  if (preferHttpTts) {
+    for (const p of candidates) {
+      try {
+        const response = await fetch(`${baseUrl}${p}`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000),
+        });
+        const raw = await response.text();
+        if (response.ok) {
+          return res.json({ ok: true, mode: 'http', statusCode: response.status, path: p, body: parseJsonMaybe(raw) });
+        }
+        lastHttpStatus = response.status;
+        lastBody = raw;
+      } catch (error_) {
+        lastError = error_;
       }
-      lastHttpStatus = response.status;
-      lastBody = raw;
-    } catch (error_) {
-      lastError = error_;
     }
   }
 
@@ -338,11 +351,21 @@ router.get('/tts/health', async (req, res) => {
     return res.json({
       ok: true,
       mode: 'spawn-ready',
-      warning: lastError?.name === 'TimeoutError' ? 'piper_http_timeout' : 'piper_http_unreachable',
+      warning: preferHttpTts ? (lastError?.name === 'TimeoutError' ? 'piper_http_timeout' : 'piper_http_unreachable') : null,
       host,
       port,
       piperCommand: spawn.piperCommand,
       modelPath: spawn.modelPath,
+      modelJsonPath: spawn.modelJsonPath,
+    });
+  }
+
+  if (spawn.modelPath && !spawn.modelJsonExists) {
+    return res.status(503).json({
+      ok: false,
+      error: 'model_json_missing',
+      modelPath: spawn.modelPath,
+      modelJsonPath: spawn.modelJsonPath,
     });
   }
 
@@ -373,6 +396,7 @@ router.post('/tts/piper', async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
     const voice = String(req.body?.voice || req.body?.model || '').trim();
+    const preferHttpTts = envBool('ENABLE_PIPER_HTTP', false);
 
     if (!text) {
       return res.status(400).json({ error: 'missing_text' });
@@ -380,12 +404,14 @@ router.post('/tts/piper', async (req, res) => {
 
     let remoteError = null;
 
-    try {
-      const remote = await requestRemoteTts(req.body);
-      return res.json(remote);
-    } catch (error_) {
-      remoteError = String(error_?.message || error_);
-      console.warn('[TTS][Piper] HTTP backend unavailable, trying local spawn:', remoteError);
+    if (preferHttpTts) {
+      try {
+        const remote = await requestRemoteTts(req.body);
+        return res.json(remote);
+      } catch (error_) {
+        remoteError = String(error_?.message || error_);
+        console.warn('[TTS][Piper] HTTP backend unavailable, trying local spawn:', remoteError);
+      }
     }
 
     try {
